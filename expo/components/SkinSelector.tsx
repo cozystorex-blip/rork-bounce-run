@@ -160,11 +160,15 @@ export default React.memo(function SkinSelector() {
   const restoreMutation = useMutation({
     mutationFn: restorePurchases,
     onSuccess: (result) => {
-      if (result) {
-        Alert.alert('Restore Complete', 'Your purchases have been restored.');
-      } else {
-        Alert.alert('Nothing to Restore', 'No previous purchases found.');
-      }
+      void Haptics.notificationAsync(
+        result.success
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Warning
+      );
+      Alert.alert(
+        result.success ? 'Restored' : 'Restore',
+        result.message
+      );
     },
     onError: () => {
       Alert.alert('Restore Failed', 'Could not restore purchases. Please try again.');

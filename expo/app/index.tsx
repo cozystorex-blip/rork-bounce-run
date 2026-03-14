@@ -26,7 +26,7 @@ import GroundWave from '@/components/GroundWave';
 import BlobCharacter from '@/components/BlobCharacter';
 import BlobSkin from '@/components/BlobSkin';
 import SkinSelector from '@/components/SkinSelector';
-import ShopModal from '@/components/ShopModal';
+
 import { SCREEN, scale, verticalScale, moderateScale, wp } from '@/constants/layout';
 
 const SCREEN_WIDTH = SCREEN.width;
@@ -37,7 +37,6 @@ export default function HomeScreen() {
   const { stats, badgeCount, currentSkin, selectMap } = useGameState();
   const formattedDistance = useFormattedDistance(stats.totalDistance);
   const [currentPage, setCurrentPage] = useState<number>(0);
-  const [shopVisible, setShopVisible] = useState<boolean>(false);
   const scrollRef = useRef<ScrollView>(null);
   const coinScale = useRef(new Animated.Value(1)).current;
 
@@ -331,7 +330,7 @@ export default function HomeScreen() {
                     Animated.timing(coinScale, { toValue: 0.9, duration: 60, useNativeDriver: true }),
                     Animated.spring(coinScale, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
                   ]).start();
-                  setShopVisible(true);
+                  scrollRef.current?.scrollTo({ x: SCREEN_WIDTH, animated: true });
                 }}
                 activeOpacity={0.8}
                 testID="coin-shop-button"
@@ -603,7 +602,7 @@ export default function HomeScreen() {
         <Animated.View style={[styles.dot, { backgroundColor: '#FFD84A', transform: [{ scale: dot1Scale }], opacity: dot1Opacity }]} />
       </View>
 
-      <ShopModal visible={shopVisible} onClose={() => setShopVisible(false)} />
+
     </View>
   );
 }

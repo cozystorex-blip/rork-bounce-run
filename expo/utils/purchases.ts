@@ -146,6 +146,45 @@ export async function purchaseCoinPack(offering: CoinPackOffering): Promise<Purc
   }
 }
 
+export const CREDITS_PER_PURCHASE = 500;
+
+export async function purchaseCredits(): Promise<{ success: boolean; credits: number }> {
+  if (!isConfigured) {
+    console.warn('[Purchases] Not configured, cannot purchase credits');
+    return { success: false, credits: 0 };
+  }
+
+  try {
+    const offerings = await Purchases.getOfferings();
+    const offering = offerings.current ?? offerings.all['coin_store'];
+    if (!offering || offering.availablePackages.length === 0) {
+      console.warn('[Purchases] No offerings available for credit purchase');
+      return { success: false, credits: 0 };
+    }
+
+    const pkg = offering.availablePackages[0];
+    console.log('[Purchases] Purchasing credits package:', pkg.identifier);
+    const result = await Purchases.purchasePackage(pkg);
+
+    const txId = result.customerInfo.originalAppUserId + '_credits_' + Date.now().toString();
+    if (processedTransactions.has(txId)) {
+      console.warn('[Purchases] Duplicate credit transaction:', txId);
+      return { success: false, credits: 0 };
+    }
+    processedTransactions.add(txId);
+
+    console.log('[Purchases] Credits purchase success:', CREDITS_PER_PURCHASE);
+    return { success: true, credits: CREDITS_PER_PURCHASE };
+  } catch (e: any) {
+    if (e?.userCancelled || e?.code === '1' || e?.message?.includes('cancelled')) {
+      console.log('[Purchases] User cancelled credit purchase');
+    } else {
+      console.error('[Purchases] Credit purchase error:', e);
+    }
+    return { success: false, credits: 0 };
+  }
+}
+
 export async function restorePurchases(): Promise<{ success: boolean; message: string }> {
   if (!isConfigured) {
     console.warn('[Purchases] Not configured, cannot restore');
