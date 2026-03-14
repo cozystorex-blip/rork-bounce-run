@@ -472,7 +472,7 @@ export default function GameScreen() {
 
   const triggerGameOver = useCallback(() => {
     setGameStatus('over');
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     triggerSplat();
 
@@ -525,10 +525,12 @@ export default function GameScreen() {
     }
 
     if (velocity.current < 0) {
-      const riseSpeed = velocity.current * (1.0 + (1.0 - mp.riseSmoothing) * 0.15);
+      const riseEase = 1.0 - Math.min(0.35, Math.abs(velocity.current) * 0.012);
+      const riseSpeed = velocity.current * riseEase * (1.0 + (1.0 - mp.riseSmoothing) * 0.15);
       characterY.current += riseSpeed;
     } else {
-      characterY.current += velocity.current;
+      const fallEase = 1.0 - Math.max(0, (velocity.current - 3) * 0.02);
+      characterY.current += velocity.current * Math.max(0.85, fallEase);
     }
 
     const minY = safeTop + 2;
@@ -633,13 +635,13 @@ export default function GameScreen() {
           ]),
           Animated.spring(levelUpScale, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }),
         ]).start(() => setShowLevelUp(false));
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
       phasePassed.current += newlyPassed;
       scoreChangedRef.current = true;
       void audioManager.playScore();
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       Animated.sequence([
         Animated.timing(scorePopScale, { toValue: 1.3, duration: 60, useNativeDriver: true }),
         Animated.spring(scorePopScale, { toValue: 1, friction: 4, tension: 160, useNativeDriver: true }),
@@ -691,7 +693,7 @@ export default function GameScreen() {
     }
 
     renderThrottleRef.current++;
-    if (renderThrottleRef.current >= 2) {
+    if (renderThrottleRef.current >= 1) {
       renderThrottleRef.current = 0;
       renderTickRef.current++;
       renderTickStateRef.current = renderTickRef.current;
@@ -818,7 +820,7 @@ export default function GameScreen() {
       const mp = movementProfileRef.current;
       velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
       charAnim.setValue(characterY.current);
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charScale.stopAnimation();
       Animated.sequence([
         Animated.timing(charScale, { toValue: mp.flapSquashX, duration: Math.max(6, mp.flapSquashDuration * 0.4), useNativeDriver: true }),
@@ -906,21 +908,21 @@ export default function GameScreen() {
         triggerTrickSpin(trick);
         updateCombo();
 
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
         charScale.stopAnimation();
         Animated.sequence([
-          Animated.timing(charScale, { toValue: trick === 'boost' ? 0.72 : trick === 'dive' ? 1.18 : 0.82, duration: 20, useNativeDriver: true }),
-          Animated.spring(charScale, { toValue: 1, friction: 2.5, tension: 260, useNativeDriver: true }),
+          Animated.timing(charScale, { toValue: trick === 'boost' ? 0.78 : trick === 'dive' ? 1.12 : 0.85, duration: 35, useNativeDriver: true }),
+          Animated.spring(charScale, { toValue: 1, friction: 4, tension: 180, useNativeDriver: true }),
         ]).start();
       } else {
         velocity.current = lvl.fastJump;
         tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST * 0.5);
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         charScale.stopAnimation();
         Animated.sequence([
-          Animated.timing(charScale, { toValue: 0.88, duration: 14, useNativeDriver: true }),
-          Animated.spring(charScale, { toValue: 1, friction: 3, tension: 280, useNativeDriver: true }),
+          Animated.timing(charScale, { toValue: 0.9, duration: 30, useNativeDriver: true }),
+          Animated.spring(charScale, { toValue: 1, friction: 5, tension: 180, useNativeDriver: true }),
         ]).start();
       }
     } else {
@@ -928,11 +930,11 @@ export default function GameScreen() {
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
       velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charScale.stopAnimation();
       Animated.sequence([
-        Animated.timing(charScale, { toValue: mp.flapSquashX, duration: Math.max(6, mp.flapSquashDuration * 0.4), useNativeDriver: true }),
-        Animated.spring(charScale, { toValue: 1, friction: mp.flapSpringFriction * 0.7, tension: mp.flapSpringTension * 1.8, useNativeDriver: true }),
+        Animated.timing(charScale, { toValue: mp.flapSquashX * 1.05, duration: Math.max(20, mp.flapSquashDuration * 0.5), useNativeDriver: true }),
+        Animated.spring(charScale, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 1.2, useNativeDriver: true }),
       ]).start();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -941,7 +943,7 @@ export default function GameScreen() {
   handleTapRef.current = handleTap;
 
   const handlePause = useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (gameStatusRef.current === 'playing') {
       setGameStatus('paused');
       void audioManager.pauseMusic();
@@ -952,13 +954,13 @@ export default function GameScreen() {
   }, [setGameStatus]);
 
   const handleMusicToggle = useCallback(async () => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const enabled = await toggleMusic();
     setMusicOn(enabled);
   }, [toggleMusic]);
 
   const handleShareGameOver = useCallback(async () => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Animated.sequence([
       Animated.timing(shareScaleAnim, { toValue: 0.88, duration: 80, useNativeDriver: true }),
       Animated.spring(shareScaleAnim, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
@@ -981,7 +983,7 @@ export default function GameScreen() {
   }, [currentLevel, shareScaleAnim]);
 
   const handleRestart = useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     characterY.current = SCREEN_HEIGHT / 2;
     velocity.current = 0;
     xDrift.current = 0;
@@ -1035,7 +1037,7 @@ export default function GameScreen() {
   }, [charAnim, charXAnim, charRotation, charStretchX, charStretchY, charWobble, gameOverOpacity, gameOverScale, levelUpAnim, levelUpScale, isNeonMap, trickSpinAnim, setGameStatus, setActiveTrick]);
 
   const handleHome = useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     void audioManager.stopMusic();
     router.back();
   }, [router]);

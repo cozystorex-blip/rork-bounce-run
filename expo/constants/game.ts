@@ -3,8 +3,8 @@ import { SCREEN, scale } from './layout';
 const gapScale = SCREEN.height / 844;
 
 export const GAME_CONFIG = {
-  GRAVITY: 0.42,
-  JUMP_FORCE: -7.6,
+  GRAVITY: 0.38,
+  JUMP_FORCE: -7.2,
   OBSTACLE_SPEED: 3.2,
   OBSTACLE_GAP: Math.round(165 * gapScale),
   OBSTACLE_WIDTH: Math.round(scale(58)),
@@ -19,9 +19,9 @@ export const GAME_CONFIG = {
   CHARACTER_X_POSITION: 0.22,
   CLOUD_COUNT: 5,
   FRAME_RATE: 16,
-  VELOCITY_DAMPING: 0.988,
-  MAX_FALL_VELOCITY: 7.0,
-  FALL_DRAG: 0.95,
+  VELOCITY_DAMPING: 0.992,
+  MAX_FALL_VELOCITY: 6.2,
+  FALL_DRAG: 0.97,
   PHASE_SWITCH_INTERVAL: 6,
   SLOW_SPEED_MULT: 0.5,
   FAST_SPEED_MULT: 1.05,
