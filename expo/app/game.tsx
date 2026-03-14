@@ -1,37 +1,33 @@
-import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
+  Pressable,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   Animated,
   StatusBar,
+  ScrollView,
+  GestureResponderEvent,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Play, RotateCcw, Home, Pause, Volume2, VolumeX, Trophy, Coins } from 'lucide-react-native';
-import { useGameState } from '@/providers/GameStateProvider';
-import { BlobCharacter } from '@/components/BlobCharacter';
-import { GAME_CONFIG, OBSTACLE_TUNING, BLOCK_COLOR_PAIRS, LEVELS, getLevelForScore } from '@/constants/game';
-import { getSkinById } from '@/constants/skins';
-import { getMapById } from '@/constants/maps';
-import { scale, verticalScale, moderateScale, SCREEN, GROUND_HEIGHT } from '@/constants/layout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pause, Play, Home, RotateCcw, Trophy, Star, Ruler, Volume2, VolumeX, CupSoda, Coins } from 'lucide-react-native';
+import { BoostIcon, DiveIcon, BarrelIcon, SpinIcon, SuperFlapIcon } from '@/components/TrickIcons';
+import { GameColors } from '@/constants/colors';
+import { GAME_CONFIG, BLOCK_COLOR_PAIRS, LEVELS, LevelConfig, OBSTACLE_TUNING } from '@/constants/game';
+import { BADGES } from '@/constants/badges';
+import { useGameState, useFormattedDistance } from '@/providers/GameStateProvider';
+import BlobSkin from '@/components/BlobSkin';
+import { DEFAULT_MOVEMENT } from '@/constants/skins';
+import { Share, Platform } from 'react-native';
+import { SCREEN, scale, verticalScale, moderateScale, GROUND_HEIGHT, MODAL } from '@/constants/layout';
 import { audioManager } from '@/utils/audio';
+import { getMapTheme } from '@/constants/maps';
+import { gameStyles as styles, trickIconStyles } from '@/constants/gameStyles';
 
 const SCREEN_WIDTH = SCREEN.width;
 const SCREEN_HEIGHT = SCREEN.height;
-
-const POLE_CAP_W = scale(OBSTACLE_TUNING.PIPE_WIDTH);
-const POLE_CAP_H = scale(OBSTACLE_TUNING.PIPE_CAP_HEIGHT);
-const POLE_SHAFT_W = POLE_CAP_W * 0.72;
-const POLE_BASE_W = POLE_CAP_W * 0.85;
-const POLE_BASE_H = scale(8);
-const POLE_CAP_RADIUS = scale(4);
-const POLE_SHAFT_RADIUS = scale(3);
-
-type GameStatus = 'idle' | 'playing' | 'dead';
 
 interface Obstacle {
   id: number;
@@ -44,67 +40,309 @@ interface Obstacle {
   angle: number;
 }
 
-interface BuildingPalette {
-  body: string;
-  ledge: string;
+interface CloudData {
+  id: number;
+  x: number;
+  y: number;
+  scale: number;
+  speed: number;
 }
 
-const buildingPalettes: BuildingPalette[] = [
-  { body: '#D35400', ledge: '#E67E22' },
-  { body: '#C0392B', ledge: '#E74C3C' },
-  { body: '#2980B9', ledge: '#3498DB' },
-  { body: '#27AE60', ledge: '#2ECC71' },
-  { body: '#8E44AD', ledge: '#9B59B6' },
-  { body: '#16A085', ledge: '#1ABC9C' },
-  { body: '#2C3E50', ledge: '#34495E' },
-  { body: '#F39C12', ledge: '#F1C40F' },
-];
+
+
+interface FloatingScore {
+  id: number;
+  x: number;
+  y: number;
+  anim: Animated.Value;
+  opacityAnim: Animated.Value;
+}
+
+type GameStatus = 'ready' | 'playing' | 'paused' | 'over';
+
+type TrickType = 'boost' | 'dive' | 'barrel_left' | 'barrel_right' | 'super_flap';
+
+interface TrickInfo {
+  name: string;
+  color: string;
+  emoji: string;
+  cooldown: number;
+}
+
+const TRICKS: Record<TrickType, TrickInfo> = {
+  boost: { name: 'BOOST', color: '#00F0FF', emoji: 'rocket', cooldown: 800 },
+  dive: { name: 'DIVE', color: '#FF2D95', emoji: 'zap', cooldown: 600 },
+  barrel_left: { name: 'BARREL', color: '#B026FF', emoji: 'refresh', cooldown: 1000 },
+  barrel_right: { name: 'SPIN', color: '#FFE000', emoji: 'sparkles', cooldown: 1000 },
+  super_flap: { name: 'FLAP', color: '#7CFF6B', emoji: 'bird', cooldown: 400 },
+};
+
+const TrickIcon = React.memo(function TrickIcon({ type, size, color }: { type: string; size: number; color: string }) {
+  const iconSize = size * 1.6;
+  const wrapStyle = [trickIconStyles.iconWrap, { backgroundColor: color + '25', borderColor: color + '60' }];
+  switch (type) {
+    case 'rocket':
+      return <View style={wrapStyle}><BoostIcon size={iconSize} color={color} /></View>;
+    case 'zap':
+      return <View style={wrapStyle}><DiveIcon size={iconSize} color={color} /></View>;
+    case 'refresh':
+      return <View style={wrapStyle}><BarrelIcon size={iconSize} color={color} /></View>;
+    case 'sparkles':
+      return <View style={wrapStyle}><SpinIcon size={iconSize} color={color} /></View>;
+    case 'bird':
+      return <View style={wrapStyle}><SuperFlapIcon size={iconSize} color={color} /></View>;
+    default:
+      return null;
+  }
+});
+
+const NEON_ZONE_TOP = 0.25;
+const NEON_ZONE_BOTTOM = 0.75;
+const NEON_ZONE_LEFT = 0.33;
+const NEON_ZONE_RIGHT = 0.67;
+const NEON_CEILING_BUFFER = 80;
+const NEON_FLOOR_BUFFER = 100;
+
+function getLevelForScore(score: number): LevelConfig {
+  let current = LEVELS[0];
+  for (const lvl of LEVELS) {
+    if (score >= lvl.scoreThreshold) {
+      current = lvl;
+    } else {
+      break;
+    }
+  }
+  return current;
+}
+
+const CHARACTER_BASE_X = SCREEN_WIDTH * GAME_CONFIG.CHARACTER_X_POSITION;
+const FLAPPY_BASE_X = SCREEN_WIDTH * 0.3;
+const POLE_CAP_W = scale(70);
+const POLE_CAP_H = scale(18);
+const POLE_SHAFT_W = scale(26);
+const POLE_BASE_W = scale(34);
+const POLE_BASE_H = scale(10);
+const POLE_BORDER = scale(3.5);
+const POLE_CAP_RADIUS = scale(8);
+const POLE_SHAFT_RADIUS = scale(6);
+const MAX_X_DRIFT = scale(42);
+const DRIFT_LERP = 0.28;
+const DRIFT_RETURN = 0.14;
+
+function generateCloud(id: number, startX?: number): CloudData {
+  return {
+    id,
+    x: startX ?? SCREEN_WIDTH + Math.random() * 200,
+    y: 30 + Math.random() * (SCREEN_HEIGHT * 0.4),
+    scale: 0.4 + Math.random() * 0.6,
+    speed: 0.5 + Math.random() * 0.8,
+  };
+}
+
+const GameBlobSkin = React.memo(function GameBlobSkin({ skinData }: { skinData: { id: string; name: string; personality: string; bodyColor: string; bodyDark: string; eyeStyle: string; mouthStyle: string; hatColor: string; hatBand: string; hatStyle: string; accentColor: string; cheekColor: string; locked: boolean; unlockRequirement: number; labelColor: string; labelBg: string; speechLine: string } }) {
+  return <BlobSkin skin={skinData as any} size={GAME_CONFIG.CHARACTER_SIZE} animated={false} />;
+});
 
 export default function GameScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { stats, submitScore } = useGameState();
-
-  const skin = useMemo(() => getSkinById(stats.selectedSkin), [stats.selectedSkin]);
-  const currentMap = useMemo(() => getMapById(stats.selectedMap), [stats.selectedMap]);
-  const mp = skin.physics;
+  const { stats, submitRun, currentSkin, toggleMusic } = useGameState();
+  const mapTheme = getMapTheme(stats.selectedMap);
 
   const safeTop = Math.max(insets.top, 20);
+  const safeBottom = Math.max(insets.bottom, 10);
 
-  const [gameStatus, setGameStatus] = useState<GameStatus>('idle');
+  const [gameStatus, setGameStatusState] = useState<GameStatus>('ready');
+  const setGameStatus = useCallback((status: GameStatus) => {
+    gameStatusRef.current = status;
+    setGameStatusState(status);
+  }, []);
   const [score, setScore] = useState<number>(0);
-  const [displayCoins, setDisplayCoins] = useState<number>(0);
-  const [currentLevel, setCurrentLevel] = useState<number>(1);
-  const [isPaused, setIsPaused] = useState<boolean>(false);
-  const [musicOn, setMusicOn] = useState<boolean>(true);
-  const [renderTick, setRenderTick] = useState<number>(0);
+  const [distance, setDistance] = useState<number>(0);
+  const [newBadges, setNewBadges] = useState<string[]>([]);
+  const [coinsEarned, setCoinsEarned] = useState<number>(0);
+  const [floatingScores, setFloatingScores] = useState<FloatingScore[]>([]);
 
-  const gameStatusRef = useRef<GameStatus>('idle');
-  const scoreRef = useRef<number>(0);
-  const coinsEarnedRef = useRef<number>(0);
-  const levelRef = useRef(LEVELS[0]);
-  const isPausedRef = useRef(false);
-
-  const characterY = useRef<number>(SCREEN_HEIGHT / 2);
-  const velocity = useRef<number>(0);
+  const characterY = useRef(SCREEN_HEIGHT / 2);
+  const velocity = useRef(0);
   const obstacles = useRef<Obstacle[]>([]);
-  const lastGapY = useRef<number>(SCREEN_HEIGHT / 2);
-  const obstacleIdCounter = useRef<number>(0);
-  const lastSpawnTime = useRef<number>(0);
-  const rafRef = useRef<number | null>(null);
-  const lastFrameTime = useRef<number>(0);
-  const renderThrottleRef = useRef<number>(0);
+  const clouds = useRef<CloudData[]>(
+    Array.from({ length: 2 }, (_, i) => generateCloud(i, Math.random() * SCREEN_WIDTH))
+  );
+  const cloudTickCounter = useRef(0);
+
+  const speedMultiplier = useRef(1);
+  const tapSpeedBonus = useRef(0);
+  const frameCount = useRef(0);
+  const obstacleIdCounter = useRef(0);
+  const lastObstacleSpawn = useRef(0);
+  const phasePassed = useRef(0);
+  const isFastPhase = useRef(true);
+  const phaseBlend = useRef(1.0);
+  const phaseTransitionCounter = useRef(0);
 
   const charAnim = useRef(new Animated.Value(SCREEN_HEIGHT / 2)).current;
+  const charXAnim = useRef(new Animated.Value(0)).current;
+  const charRotation = useRef(new Animated.Value(0)).current;
   const charScale = useRef(new Animated.Value(1)).current;
-  const charRotate = useRef(new Animated.Value(0)).current;
-  const deathOverlayOpacity = useRef(new Animated.Value(0)).current;
-  const scorePopScale = useRef(new Animated.Value(1)).current;
-  const hudOpacity = useRef(new Animated.Value(1)).current;
+  const charStretchX = useRef(new Animated.Value(1)).current;
+  const charStretchY = useRef(new Animated.Value(1)).current;
+  const charWobble = useRef(new Animated.Value(0)).current;
 
-  const getCharX = useCallback(() => {
-    return SCREEN_WIDTH * GAME_CONFIG.CHARACTER_X_PERCENT;
+  const prevRotVal = useRef(0);
+  const prevStretchX = useRef(1);
+  const prevStretchY = useRef(1);
+
+  const xDrift = useRef(0);
+  const targetXDrift = useRef(0);
+  const characterX = useRef(CHARACTER_BASE_X);
+  const tapSideForce = useRef(0);
+
+  const scorePopScale = useRef(new Animated.Value(1)).current;
+  const shakeX = useRef(new Animated.Value(0)).current;
+  const shakeY = useRef(new Animated.Value(0)).current;
+  const gameOverOpacity = useRef(new Animated.Value(0)).current;
+  const gameOverScale = useRef(new Animated.Value(0.8)).current;
+  const readyPulse = useRef(new Animated.Value(1)).current;
+  const skyShift = useRef(new Animated.Value(0)).current;
+
+  const splatAnims = useRef(
+    Array.from({ length: 5 }, () => ({
+      x: new Animated.Value(0),
+      y: new Animated.Value(0),
+      scale: new Animated.Value(0),
+      opacity: new Animated.Value(0),
+    }))
+  ).current;
+  const [showSplat, setShowSplat] = useState<boolean>(false);
+  const splatPosition = useRef({ x: CHARACTER_BASE_X, y: SCREEN_HEIGHT / 2 });
+
+  const renderTickRef = useRef(0);
+  const renderTickStateRef = useRef(0);
+  const [renderTick, setRenderTick] = useState<number>(0);
+  const batchedScoreRef = useRef(0);
+  const needsScoreUpdate = useRef(false);
+  const [musicOn, setMusicOn] = useState<boolean>(stats.musicEnabled);
+  const shareScaleAnim = useRef(new Animated.Value(1)).current;
+
+  const [activeTrick, setActiveTrickState] = useState<{ type: TrickType; info: TrickInfo } | null>(null);
+  const activeTrickRef = useRef<{ type: TrickType; info: TrickInfo } | null>(null);
+  const setActiveTrick = useCallback((v: { type: TrickType; info: TrickInfo } | null) => {
+    activeTrickRef.current = v;
+    setActiveTrickState(v);
   }, []);
+  const trickLabelAnim = useRef(new Animated.Value(0)).current;
+  const trickLabelScale = useRef(new Animated.Value(0.3)).current;
+  const trickSpinAnim = useRef(new Animated.Value(0)).current;
+  const lastTrickTime = useRef<number>(0);
+  const trickCombo = useRef<number>(0);
+  const [comboCount, setComboCount] = useState<number>(0);
+  const comboAnim = useRef(new Animated.Value(0)).current;
+  const comboTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [currentLevel, setCurrentLevel] = useState<LevelConfig>(LEVELS[0]);
+  const [showLevelUp, setShowLevelUp] = useState<boolean>(false);
+  const levelRef = useRef<LevelConfig>(LEVELS[0]);
+  const levelUpAnim = useRef(new Animated.Value(0)).current;
+  const levelUpScale = useRef(new Animated.Value(0.5)).current;
+  const scoreRef = useRef(0);
+  const distanceRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  const lastTimeRef = useRef(0);
+  const accumulatorRef = useRef(0);
+  const renderThrottleRef = useRef(0);
+  const floatingScoreIdRef = useRef(0);
+  const scoreChangedRef = useRef(false);
+  const stepPhysicsRef = useRef<() => boolean>(() => true);
+  const handleTapRef = useRef<(evt?: GestureResponderEvent) => void>(() => {});
+  const gameStatusRef = useRef<GameStatus>('ready');
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(readyPulse, { toValue: 1.08, duration: 900, useNativeDriver: true }),
+        Animated.timing(readyPulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+
+    const skyLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(skyShift, { toValue: 1, duration: 20000, useNativeDriver: true }),
+        Animated.timing(skyShift, { toValue: 0, duration: 20000, useNativeDriver: true }),
+      ])
+    );
+    skyLoop.start();
+
+    return () => { pulse.stop(); skyLoop.stop(); };
+  }, [readyPulse, skyShift]);
+
+  const lastGapY = useRef(SCREEN_HEIGHT / 2);
+
+  const isNeonMap = mapTheme.id === 'neon';
+  const baseX = isNeonMap ? FLAPPY_BASE_X : CHARACTER_BASE_X;
+
+  const getCharX = useCallback(() => isNeonMap ? FLAPPY_BASE_X : CHARACTER_BASE_X + xDrift.current, [isNeonMap]);
+
+  const detectTrickZone = useCallback((tapX: number, tapY: number): TrickType => {
+    const normX = tapX / SCREEN_WIDTH;
+    const normY = tapY / SCREEN_HEIGHT;
+
+    if (normY < NEON_ZONE_TOP) return 'boost';
+    if (normY > NEON_ZONE_BOTTOM) return 'dive';
+    if (normX < NEON_ZONE_LEFT) return 'barrel_left';
+    if (normX > NEON_ZONE_RIGHT) return 'barrel_right';
+    return 'super_flap';
+  }, []);
+
+  const showTrickLabel = useCallback((trick: TrickType) => {
+    const info = TRICKS[trick];
+    setActiveTrick({ type: trick, info });
+    trickLabelAnim.setValue(0);
+    trickLabelScale.setValue(0.3);
+
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(trickLabelAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.delay(500),
+        Animated.timing(trickLabelAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+      ]),
+      Animated.spring(trickLabelScale, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
+    ]).start(() => setActiveTrick(null));
+  }, [trickLabelAnim, trickLabelScale, setActiveTrick]);
+
+  const triggerTrickSpin = useCallback((trick: TrickType) => {
+    let toVal = 0;
+    let duration = 400;
+    if (trick === 'barrel_left') { toVal = -1; duration = 450; }
+    else if (trick === 'barrel_right') { toVal = 1; duration = 450; }
+    else if (trick === 'boost') { toVal = -0.5; duration = 300; }
+    else if (trick === 'dive') { toVal = 0.5; duration = 300; }
+    else { toVal = 0.3; duration = 250; }
+
+    trickSpinAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(trickSpinAnim, { toValue: toVal, duration: duration * 0.4, useNativeDriver: true }),
+      Animated.timing(trickSpinAnim, { toValue: 0, duration: duration * 0.6, useNativeDriver: true }),
+    ]).start();
+  }, [trickSpinAnim]);
+
+  const updateCombo = useCallback(() => {
+    trickCombo.current++;
+    setComboCount(trickCombo.current);
+    comboAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(comboAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.delay(1200),
+      Animated.timing(comboAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start();
+
+    if (comboTimer.current) clearTimeout(comboTimer.current);
+    comboTimer.current = setTimeout(() => {
+      trickCombo.current = 0;
+      setComboCount(0);
+    }, 2000);
+  }, [comboAnim]);
 
   const spawnObstacle = useCallback(() => {
     const lvl = levelRef.current;
@@ -172,38 +410,107 @@ export default function GameScreen() {
     return false;
   }, [safeTop, getCharX]);
 
-  const handleDeath = useCallback(() => {
-    if (gameStatusRef.current === 'dead') return;
-    gameStatusRef.current = 'dead';
-    setGameStatus('dead');
+  const triggerSplat = useCallback(() => {
+    splatPosition.current = { x: getCharX(), y: characterY.current };
+    setShowSplat(true);
+    const anims = splatAnims.map((s, i) => {
+      const angle = (i / 5) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+      const dist = 25 + Math.random() * 40;
+      s.x.setValue(0);
+      s.y.setValue(0);
+      s.scale.setValue(0.6 + Math.random() * 0.6);
+      s.opacity.setValue(1);
+      return Animated.parallel([
+        Animated.timing(s.x, { toValue: Math.cos(angle) * dist, duration: 400, useNativeDriver: true }),
+        Animated.timing(s.y, { toValue: Math.sin(angle) * dist, duration: 400, useNativeDriver: true }),
+        Animated.timing(s.opacity, { toValue: 0, duration: 450, useNativeDriver: true }),
+        Animated.sequence([
+          Animated.timing(s.scale, { toValue: 1.3, duration: 100, useNativeDriver: true }),
+          Animated.timing(s.scale, { toValue: 0, duration: 350, useNativeDriver: true }),
+        ]),
+      ]);
+    });
+    Animated.parallel(anims).start(() => setShowSplat(false));
+  }, [splatAnims, getCharX]);
 
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    void audioManager.playDeath();
+  const floatingScorePool = useRef<FloatingScore[]>([]);
+  const activeFloatingCount = useRef(0);
 
-    submitScore(scoreRef.current, coinsEarnedRef.current);
-
-    Animated.timing(deathOverlayOpacity, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
-
-    console.log(`[Game] Death. Score: ${scoreRef.current}, Coins: ${coinsEarnedRef.current}`);
-  }, [deathOverlayOpacity, submitScore]);
-
-  const gameLoop = useCallback(() => {
-    if (gameStatusRef.current !== 'playing' || isPausedRef.current) {
-      rafRef.current = requestAnimationFrame(gameLoop);
-      return;
+  const spawnFloatingScore = useCallback((x: number, y: number, _val: number) => {
+    if (activeFloatingCount.current >= 1) return;
+    activeFloatingCount.current++;
+    const id = floatingScoreIdRef.current++;
+    let fs: FloatingScore;
+    if (floatingScorePool.current.length > 0) {
+      fs = floatingScorePool.current.pop()!;
+      fs.id = id;
+      fs.x = x;
+      fs.y = y;
+      fs.anim.setValue(0);
+      fs.opacityAnim.setValue(1);
+    } else {
+      fs = { id, x, y, anim: new Animated.Value(0), opacityAnim: new Animated.Value(1) };
     }
+    setFloatingScores([fs]);
+    Animated.parallel([
+      Animated.timing(fs.anim, { toValue: -50, duration: 350, useNativeDriver: true }),
+      Animated.timing(fs.opacityAnim, { toValue: 0, duration: 350, useNativeDriver: true }),
+    ]).start(() => {
+      activeFloatingCount.current--;
+      setFloatingScores([]);
+      floatingScorePool.current.push(fs);
+    });
+  }, []);
 
-    const now = performance.now();
-    const dt = lastFrameTime.current ? Math.min((now - lastFrameTime.current) / 16.67, 2.5) : 1;
-    lastFrameTime.current = now;
+  const triggerGameOver = useCallback(() => {
+    setGameStatus('over');
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    triggerSplat();
+
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(shakeX, { toValue: 7, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeX, { toValue: -7, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeX, { toValue: 5, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeX, { toValue: -3, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeX, { toValue: 0, duration: 50, useNativeDriver: true }),
+      ]),
+      Animated.sequence([
+        Animated.timing(shakeY, { toValue: 4, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeY, { toValue: -4, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeY, { toValue: 2, duration: 45, useNativeDriver: true }),
+        Animated.timing(shakeY, { toValue: 0, duration: 55, useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    const finalScore = scoreRef.current;
+    const finalDistance = distanceRef.current;
+    setScore(finalScore);
+    setDistance(finalDistance);
+
+    setTimeout(() => {
+      const result = submitRun(finalScore, finalDistance);
+      setNewBadges(result.newBadges);
+      setCoinsEarned(result.coinsEarned);
+
+      Animated.parallel([
+        Animated.timing(gameOverOpacity, { toValue: 1, duration: 280, useNativeDriver: true }),
+        Animated.spring(gameOverScale, { toValue: 1, friction: 6, tension: 80, useNativeDriver: true }),
+      ]).start();
+    }, 350);
+  }, [submitRun, shakeX, shakeY, gameOverOpacity, gameOverScale, triggerSplat, setGameStatus]);
+
+  const movementProfile = currentSkin?.movement ?? DEFAULT_MOVEMENT;
+  const movementProfileRef = useRef(movementProfile);
+  movementProfileRef.current = movementProfile;
+
+  const stepPhysics = useCallback(() => {
+    phaseBlend.current = 1.0;
 
     const lvl = levelRef.current;
-
-    velocity.current += lvl.fastGravity * mp.gravityMultiplier * dt;
+    const mp = movementProfileRef.current;
+    velocity.current += lvl.fastGravity * mp.gravityMultiplier;
     velocity.current *= mp.fallDamping;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
@@ -212,173 +519,550 @@ export default function GameScreen() {
     if (velocity.current < 0) {
       const riseEase = 1.0 - Math.min(0.35, Math.abs(velocity.current) * 0.012);
       const riseSpeed = velocity.current * riseEase * (1.0 + (1.0 - mp.riseSmoothing) * 0.15);
-      characterY.current += riseSpeed * dt;
+      characterY.current += riseSpeed;
     } else {
       const fallEase = 1.0 - Math.max(0, (velocity.current - 3) * 0.02);
-      characterY.current += velocity.current * Math.max(0.85, fallEase) * dt;
+      characterY.current += velocity.current * Math.max(0.85, fallEase);
     }
 
-    const tiltTarget = Math.max(-1, Math.min(1, velocity.current / 6));
-    charRotate.setValue(tiltTarget);
+    const minY = safeTop + 2;
+    const maxY = SCREEN_HEIGHT - GROUND_HEIGHT - 2;
+    if (characterY.current < minY) {
+      characterY.current = minY;
+      velocity.current = Math.max(velocity.current, 0.5);
+    } else if (characterY.current > maxY) {
+      characterY.current = maxY;
+      velocity.current = Math.min(velocity.current, -0.5);
+    }
 
+    const vel = velocity.current;
+    if (isNeonMap) {
+      if (Math.abs(xDrift.current) > 0.5) {
+        xDrift.current *= 0.88;
+        characterX.current = FLAPPY_BASE_X + xDrift.current;
+        charXAnim.setValue(xDrift.current);
+      } else if (xDrift.current !== 0) {
+        xDrift.current = 0;
+        characterX.current = FLAPPY_BASE_X;
+        charXAnim.setValue(0);
+      }
+      targetXDrift.current = 0;
+      tapSideForce.current = 0;
+    } else {
+      if (vel < -1.5) {
+        targetXDrift.current = MAX_X_DRIFT * 0.3;
+      } else if (vel > 2.5) {
+        targetXDrift.current = -MAX_X_DRIFT * 0.2;
+      } else {
+        targetXDrift.current = 0;
+      }
+      targetXDrift.current += tapSideForce.current;
+      tapSideForce.current *= 0.92;
+
+      const driftDelta = targetXDrift.current - xDrift.current;
+      const lerpFactor = Math.abs(driftDelta) > 1 ? DRIFT_LERP : DRIFT_RETURN;
+      xDrift.current += driftDelta * lerpFactor;
+      xDrift.current = Math.max(-MAX_X_DRIFT, Math.min(MAX_X_DRIFT * 1.2, xDrift.current));
+      characterX.current = CHARACTER_BASE_X + xDrift.current;
+      charXAnim.setValue(xDrift.current);
+    }
+
+    const absVel = Math.abs(vel);
+    const stretchYVal = Math.min(1.3, 1 + absVel * 0.018);
+    const stretchXVal = Math.max(0.78, 1 - absVel * 0.01);
+    if (Math.abs(stretchYVal - prevStretchY.current) > 0.04) {
+      charStretchY.setValue(stretchYVal);
+      prevStretchY.current = stretchYVal;
+    }
+    if (Math.abs(stretchXVal - prevStretchX.current) > 0.04) {
+      charStretchX.setValue(stretchXVal);
+      prevStretchX.current = stretchXVal;
+    }
+
+    tapSpeedBonus.current *= GAME_CONFIG.TAP_SPEED_DECAY;
+    if (tapSpeedBonus.current < 0.001) tapSpeedBonus.current = 0;
+    const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + tapSpeedBonus.current) * lvl.fastSpeedMult;
     const cx = getCharX();
-    const speed = lvl.fastSpeed * dt;
 
-    for (let i = obstacles.current.length - 1; i >= 0; i--) {
-      obstacles.current[i].x -= speed;
-      if (obstacles.current[i].x < -POLE_CAP_W - 40) {
-        obstacles.current.splice(i, 1);
-        continue;
+    const obs = obstacles.current;
+    const obsLen = obs.length;
+    let i = 0;
+    for (let j = 0; j < obsLen; j++) {
+      obs[j].x -= currentSpeed;
+      if (obs[j].x > -100) {
+        obs[i] = obs[j];
+        i++;
       }
+    }
+    obs.length = i;
 
-      if (!obstacles.current[i].passed && obstacles.current[i].x + POLE_CAP_W / 2 < cx) {
-        obstacles.current[i].passed = true;
-        scoreRef.current += 1;
-        coinsEarnedRef.current += GAME_CONFIG.COINS_PER_SCORE;
-        setScore(scoreRef.current);
-        setDisplayCoins(coinsEarnedRef.current);
+    let scored = false;
+    let newlyPassed = 0;
+    for (let si = 0; si < obs.length; si++) {
+      const o = obs[si];
+      if (!o.passed && o.x < cx - POLE_CAP_W / 2) {
+        o.passed = true;
+        scoreRef.current++;
+        scored = true;
+        newlyPassed++;
+        spawnFloatingScore(o.x, o.gapY, scoreRef.current);
+      }
+    }
 
-        const newLevel = getLevelForScore(scoreRef.current);
-        if (newLevel.level !== levelRef.current.level) {
-          levelRef.current = newLevel;
-          setCurrentLevel(newLevel.level);
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          console.log(`[Game] Level up! Now level ${newLevel.level}: ${newLevel.label}`);
-        }
-
-        void audioManager.playScore();
+    if (scored) {
+      const newLevel = getLevelForScore(scoreRef.current);
+      if (newLevel.level !== lvl.level) {
+        levelRef.current = newLevel;
+        setCurrentLevel(newLevel);
+        phasePassed.current = 0;
+        phaseTransitionCounter.current = 0;
+        setShowLevelUp(true);
+        levelUpAnim.setValue(0);
+        levelUpScale.setValue(0.5);
+        Animated.parallel([
+          Animated.sequence([
+            Animated.timing(levelUpAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+            Animated.delay(1200),
+            Animated.timing(levelUpAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+          ]),
+          Animated.spring(levelUpScale, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }),
+        ]).start(() => setShowLevelUp(false));
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
 
-        scorePopScale.setValue(1.3);
-        Animated.spring(scorePopScale, {
-          toValue: 1,
-          friction: 4,
-          tension: 180,
-          useNativeDriver: true,
-        }).start();
+      phasePassed.current += newlyPassed;
+      scoreChangedRef.current = true;
+      void audioManager.playScore();
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Animated.sequence([
+        Animated.timing(scorePopScale, { toValue: 1.3, duration: 60, useNativeDriver: true }),
+        Animated.spring(scorePopScale, { toValue: 1, friction: 4, tension: 160, useNativeDriver: true }),
+      ]).start();
+    }
+
+    cloudTickCounter.current++;
+    if (cloudTickCounter.current >= 30) {
+      cloudTickCounter.current = 0;
+      for (let ci = 0; ci < clouds.current.length; ci++) {
+        const c = clouds.current[ci];
+        c.x -= c.speed * (currentSpeed / GAME_CONFIG.OBSTACLE_SPEED) * 12;
+        if (c.x < -150) {
+          const fresh = generateCloud(c.id);
+          c.x = fresh.x;
+          c.y = fresh.y;
+          c.scale = fresh.scale;
+          c.speed = fresh.speed;
+        }
       }
     }
 
-    if (now - lastSpawnTime.current > GAME_CONFIG.OBSTACLE_SPAWN_INTERVAL / (lvl.fastSpeed / 3)) {
+    frameCount.current++;
+    lastObstacleSpawn.current += GAME_CONFIG.FRAME_RATE;
+    const spawnInterval = lvl.spawnInterval / speedMultiplier.current;
+    if (lastObstacleSpawn.current >= spawnInterval) {
       spawnObstacle();
-      lastSpawnTime.current = now;
+      lastObstacleSpawn.current = 0;
     }
 
-    if (checkCollision(characterY.current, obstacles.current)) {
-      handleDeath();
-      return;
+    speedMultiplier.current = Math.min(
+      GAME_CONFIG.MAX_SPEED_MULTIPLIER,
+      1 + frameCount.current * GAME_CONFIG.SPEED_INCREMENT
+    );
+
+    distanceRef.current += currentSpeed * 0.1;
+
+    if (checkCollision(characterY.current, obs)) {
+      setDistance(distanceRef.current);
+      triggerGameOver();
+      return false;
     }
 
     charAnim.setValue(characterY.current);
+    const rotVal = Math.max(-1, Math.min(1, velocity.current / 8));
+    if (Math.abs(rotVal - prevRotVal.current) > 0.03) {
+      charRotation.setValue(rotVal);
+      prevRotVal.current = rotVal;
+    }
 
     renderThrottleRef.current++;
     if (renderThrottleRef.current >= 1) {
       renderThrottleRef.current = 0;
-      setRenderTick(t => t + 1);
+      renderTickRef.current++;
+      renderTickStateRef.current = renderTickRef.current;
+      if (scoreChangedRef.current) {
+        scoreChangedRef.current = false;
+        batchedScoreRef.current = scoreRef.current;
+        needsScoreUpdate.current = true;
+      }
+      if (needsScoreUpdate.current) {
+        needsScoreUpdate.current = false;
+        setScore(batchedScoreRef.current);
+      }
+      setRenderTick(renderTickStateRef.current);
     }
 
-    rafRef.current = requestAnimationFrame(gameLoop);
-  }, [charAnim, charRotate, scorePopScale, getCharX, checkCollision, handleDeath, spawnObstacle, mp]);
+    return true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spawnObstacle, checkCollision, triggerGameOver, charAnim, charXAnim, charRotation, scorePopScale, charStretchX, charStretchY, levelUpAnim, levelUpScale, spawnFloatingScore, getCharX, isNeonMap]);
 
-  const startGame = useCallback(() => {
-    characterY.current = SCREEN_HEIGHT / 2;
-    velocity.current = 0;
-    obstacles.current = [];
-    obstacleIdCounter.current = 0;
-    scoreRef.current = 0;
-    coinsEarnedRef.current = 0;
-    lastGapY.current = SCREEN_HEIGHT / 2;
-    lastSpawnTime.current = performance.now();
-    lastFrameTime.current = 0;
-    levelRef.current = LEVELS[0];
-
-    setScore(0);
-    setDisplayCoins(0);
-    setCurrentLevel(1);
-    setIsPaused(false);
-    isPausedRef.current = false;
-
-    charAnim.setValue(SCREEN_HEIGHT / 2);
-    charScale.setValue(1);
-    charRotate.setValue(0);
-    deathOverlayOpacity.setValue(0);
-    hudOpacity.setValue(1);
-
-    gameStatusRef.current = 'playing';
-    setGameStatus('playing');
-
-    velocity.current = GAME_CONFIG.JUMP_FORCE * mp.flapForceMultiplier * 0.6;
-
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    if (rafRef.current == null) {
-      rafRef.current = requestAnimationFrame(gameLoop);
-    }
-
-    console.log('[Game] Started. Skin:', skin.id, 'Map:', currentMap.id);
-  }, [charAnim, charScale, charRotate, deathOverlayOpacity, hudOpacity, gameLoop, mp, skin.id, currentMap.id]);
-
-  const handleTap = useCallback(() => {
-    if (gameStatusRef.current === 'idle') {
-      startGame();
-      return;
-    }
-    if (gameStatusRef.current === 'dead') return;
-    if (isPausedRef.current) return;
-
-    velocity.current = levelRef.current.fastJump * mp.flapForceMultiplier * 1.05;
-    charAnim.setValue(characterY.current);
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    charScale.stopAnimation();
-    Animated.sequence([
-      Animated.timing(charScale, { toValue: mp.flapSquashX * 1.05, duration: Math.max(20, mp.flapSquashDuration * 0.5), useNativeDriver: true }),
-      Animated.spring(charScale, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 1.2, useNativeDriver: true }),
-    ]).start();
-  }, [startGame, charAnim, charScale, mp]);
-
-  const handlePause = useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (gameStatusRef.current === 'playing') {
-      isPausedRef.current = !isPausedRef.current;
-      setIsPaused(isPausedRef.current);
-    }
-  }, []);
-
-  const handleRestart = useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    startGame();
-  }, [startGame]);
-
-  const handleGoHome = useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    void audioManager.stopMusic();
-    router.back();
-  }, [router]);
-
-  const handleToggleMusic = useCallback(async () => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const enabled = await audioManager.toggleMusic();
-    setMusicOn(enabled);
-  }, []);
+  stepPhysicsRef.current = stepPhysics;
 
   useEffect(() => {
-    rafRef.current = requestAnimationFrame(gameLoop);
+    if (gameStatus === 'playing') {
+      void audioManager.startMusic();
+    } else if (gameStatus === 'over') {
+      void audioManager.stopMusic();
+    }
+  }, [gameStatus]);
+
+  useEffect(() => {
     return () => {
       void audioManager.stopMusic();
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
+      if (comboTimer.current) {
+        clearTimeout(comboTimer.current);
+        comboTimer.current = null;
+      }
     };
-  }, [gameLoop]);
+  }, []);
 
-  const renderObstacles = useMemo(() => {
+  useEffect(() => {
+    if (gameStatus !== 'playing') {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      return;
+    }
+
+    lastTimeRef.current = 0;
+    accumulatorRef.current = 0;
+
+    const tick = (timestamp: number) => {
+      if (gameStatusRef.current !== 'playing') return;
+
+      if (lastTimeRef.current === 0) {
+        lastTimeRef.current = timestamp;
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      const rawDelta = timestamp - lastTimeRef.current;
+      lastTimeRef.current = timestamp;
+
+      if (rawDelta > 100) {
+        accumulatorRef.current = 0;
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      const delta = Math.min(rawDelta, 33);
+      accumulatorRef.current += delta;
+
+      let steps = 0;
+      const maxSteps = 3;
+      while (accumulatorRef.current >= GAME_CONFIG.FRAME_RATE && steps < maxSteps) {
+        const alive = stepPhysicsRef.current();
+        if (!alive) return;
+        accumulatorRef.current -= GAME_CONFIG.FRAME_RATE;
+        steps++;
+      }
+
+      if (accumulatorRef.current > GAME_CONFIG.FRAME_RATE * 2) {
+        accumulatorRef.current = GAME_CONFIG.FRAME_RATE;
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameStatus]);
+
+  const handleTap = useCallback((evt?: GestureResponderEvent) => {
+    if (gameStatusRef.current === 'over') return;
+
+    let tapX = SCREEN_WIDTH / 2;
+    let tapY = SCREEN_HEIGHT / 2;
+    if (evt?.nativeEvent) {
+      tapX = evt.nativeEvent.locationX ?? tapX;
+      tapY = evt.nativeEvent.locationY ?? tapY;
+    }
+
+    const normalizedX = (tapX / SCREEN_WIDTH - 0.5) * 2;
+    const sideForce = isNeonMap ? 0 : normalizedX * MAX_X_DRIFT * 0.95;
+
+    const normalizedY = tapY / SCREEN_HEIGHT;
+    const jumpMod = isNeonMap ? 1 : 1 + (0.5 - normalizedY) * 0.3;
+
+    if (gameStatusRef.current === 'ready') {
+      setGameStatus('playing');
+      tapSideForce.current = sideForce;
+      tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
+      const mp = movementProfileRef.current;
+      velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      charAnim.setValue(characterY.current);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      charScale.stopAnimation();
+      Animated.sequence([
+        Animated.timing(charScale, { toValue: mp.flapSquashX, duration: Math.max(6, mp.flapSquashDuration * 0.4), useNativeDriver: true }),
+        Animated.spring(charScale, { toValue: 1, friction: mp.flapSpringFriction * 0.7, tension: mp.flapSpringTension * 1.8, useNativeDriver: true }),
+      ]).start();
+      if (mp.wobbleAmount > 0) {
+        charWobble.setValue(0);
+        Animated.sequence([
+          Animated.timing(charWobble, { toValue: 1, duration: mp.wobbleDuration * 0.25, useNativeDriver: true }),
+          Animated.timing(charWobble, { toValue: -0.6, duration: mp.wobbleDuration * 0.25, useNativeDriver: true }),
+          Animated.timing(charWobble, { toValue: 0, duration: mp.wobbleDuration * 0.3, useNativeDriver: true }),
+        ]).start();
+      }
+      return;
+    }
+
+    if (gameStatusRef.current === 'paused') return;
+
+    const lvl = levelRef.current;
+
+    charAnim.setValue(characterY.current);
+
+    if (isNeonMap) {
+      const now = Date.now();
+      const trick = detectTrickZone(tapX, tapY);
+      const trickInfo = TRICKS[trick];
+      const cy = characterY.current;
+
+      const canTrick = (now - lastTrickTime.current) >= trickInfo.cooldown;
+
+      if (canTrick) {
+        lastTrickTime.current = now;
+        tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
+
+        let jumpForce = lvl.fastJump;
+        let xForce = 0;
+
+        switch (trick) {
+          case 'boost':
+            if (cy <= safeTop + NEON_CEILING_BUFFER) {
+              jumpForce = lvl.fastJump * 0.5;
+            } else {
+              jumpForce = lvl.fastJump * 1.45;
+            }
+            break;
+          case 'dive':
+            if (cy >= SCREEN_HEIGHT - GROUND_HEIGHT - NEON_FLOOR_BUFFER) {
+              jumpForce = lvl.fastJump * 0.8;
+            } else {
+              jumpForce = Math.abs(lvl.fastJump) * 0.6;
+            }
+            break;
+          case 'barrel_left':
+            jumpForce = lvl.fastJump * 0.9;
+            xForce = -scale(18);
+            break;
+          case 'barrel_right':
+            jumpForce = lvl.fastJump * 0.9;
+            xForce = scale(18);
+            break;
+          case 'super_flap':
+            jumpForce = lvl.fastJump * 1.1;
+            break;
+        }
+
+        velocity.current = jumpForce;
+
+        if (xForce !== 0) {
+          const newX = Math.max(
+            FLAPPY_BASE_X - scale(40),
+            Math.min(FLAPPY_BASE_X + scale(40), characterX.current + xForce)
+          );
+          characterX.current = newX;
+          xDrift.current = newX - FLAPPY_BASE_X;
+          charXAnim.setValue(xDrift.current);
+
+          setTimeout(() => {
+            xDrift.current *= 0.3;
+            characterX.current = FLAPPY_BASE_X + xDrift.current;
+            charXAnim.setValue(xDrift.current);
+          }, 300);
+        }
+
+        showTrickLabel(trick);
+        triggerTrickSpin(trick);
+        updateCombo();
+
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+        charScale.stopAnimation();
+        Animated.sequence([
+          Animated.timing(charScale, { toValue: trick === 'boost' ? 0.78 : trick === 'dive' ? 1.12 : 0.85, duration: 35, useNativeDriver: true }),
+          Animated.spring(charScale, { toValue: 1, friction: 4, tension: 180, useNativeDriver: true }),
+        ]).start();
+      } else {
+        velocity.current = lvl.fastJump;
+        tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST * 0.5);
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        charScale.stopAnimation();
+        Animated.sequence([
+          Animated.timing(charScale, { toValue: 0.9, duration: 30, useNativeDriver: true }),
+          Animated.spring(charScale, { toValue: 1, friction: 5, tension: 180, useNativeDriver: true }),
+        ]).start();
+      }
+    } else {
+      const mp = movementProfileRef.current;
+      tapSideForce.current = sideForce;
+      tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
+      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      charScale.stopAnimation();
+      Animated.sequence([
+        Animated.timing(charScale, { toValue: mp.flapSquashX * 1.05, duration: Math.max(20, mp.flapSquashDuration * 0.5), useNativeDriver: true }),
+        Animated.spring(charScale, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 1.2, useNativeDriver: true }),
+      ]).start();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [charScale, charAnim, charStretchY, charWobble, isNeonMap, detectTrickZone, showTrickLabel, triggerTrickSpin, updateCombo, safeTop, charXAnim, setGameStatus]);
+
+  handleTapRef.current = handleTap;
+
+  const handlePause = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (gameStatusRef.current === 'playing') {
+      setGameStatus('paused');
+      void audioManager.pauseMusic();
+    } else if (gameStatusRef.current === 'paused') {
+      setGameStatus('playing');
+      void audioManager.resumeMusic();
+    }
+  }, [setGameStatus]);
+
+  const handleMusicToggle = useCallback(async () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const enabled = await toggleMusic();
+    setMusicOn(enabled);
+  }, [toggleMusic]);
+
+  const handleShareGameOver = useCallback(async () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.sequence([
+      Animated.timing(shareScaleAnim, { toValue: 0.88, duration: 80, useNativeDriver: true }),
+      Animated.spring(shareScaleAnim, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
+    ]).start();
+    const message = `I scored ${scoreRef.current} in BlobDash! Level ${currentLevel.level} - ${currentLevel.name}. Can you beat me? 🟡`;
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          await navigator.share({ text: message, title: 'BlobDash Score' });
+        } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(message);
+          console.log('Score copied to clipboard');
+        }
+      } else {
+        await Share.share({ message, title: 'BlobDash Score' });
+      }
+    } catch (e) {
+      console.log('Share cancelled or failed', e);
+    }
+  }, [currentLevel, shareScaleAnim]);
+
+  const handleRestart = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    characterY.current = SCREEN_HEIGHT / 2;
+    velocity.current = 0;
+    xDrift.current = 0;
+    targetXDrift.current = 0;
+    tapSideForce.current = 0;
+    characterX.current = isNeonMap ? FLAPPY_BASE_X : CHARACTER_BASE_X;
+    lastTrickTime.current = 0;
+    trickCombo.current = 0;
+    setComboCount(0);
+    setActiveTrick(null);
+    trickSpinAnim.setValue(0);
+    obstacles.current = [];
+    needsScoreUpdate.current = false;
+    batchedScoreRef.current = 0;
+    clouds.current = Array.from({ length: 2 }, (_, i) => generateCloud(i, Math.random() * SCREEN_WIDTH));
+    speedMultiplier.current = 1;
+    tapSpeedBonus.current = 0;
+    frameCount.current = 0;
+    obstacleIdCounter.current = 0;
+    lastObstacleSpawn.current = 0;
+    scoreRef.current = 0;
+    distanceRef.current = 0;
+    renderThrottleRef.current = 0;
+    lastTimeRef.current = 0;
+    accumulatorRef.current = 0;
+    phasePassed.current = 0;
+    isFastPhase.current = true;
+    phaseBlend.current = 1.0;
+    phaseTransitionCounter.current = 0;
+    levelRef.current = LEVELS[0];
+    setCurrentLevel(LEVELS[0]);
+    setShowLevelUp(false);
+    lastGapY.current = SCREEN_HEIGHT / 2;
+    levelUpAnim.setValue(0);
+    levelUpScale.setValue(0.5);
+    setScore(0);
+    setDistance(0);
+    setNewBadges([]);
+    setCoinsEarned(0);
+    setFloatingScores([]);
+    setShowSplat(false);
+    charAnim.setValue(SCREEN_HEIGHT / 2);
+    charXAnim.setValue(0);
+    charRotation.setValue(0);
+    charStretchX.setValue(1);
+    charStretchY.setValue(1);
+    charWobble.setValue(0);
+    gameOverOpacity.setValue(0);
+    gameOverScale.setValue(0.8);
+    setGameStatus('ready');
+  }, [charAnim, charXAnim, charRotation, charStretchX, charStretchY, charWobble, gameOverOpacity, gameOverScale, levelUpAnim, levelUpScale, isNeonMap, trickSpinAnim, setGameStatus, setActiveTrick]);
+
+  const handleHome = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void audioManager.stopMusic();
+    router.back();
+  }, [router]);
+
+  const charRotateDeg = charRotation.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-22deg', '0deg', '20deg'],
+  });
+
+  const charWobbleDeg = charWobble.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [`-${movementProfile.wobbleAmount}deg`, '0deg', `${movementProfile.wobbleAmount}deg`],
+  });
+
+  const formattedDist = useFormattedDistance(distance);
+
+  const skyLayerTranslate = skyShift.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -30],
+  });
+
+  const buildingPalettes = useMemo(() => mapTheme.obstacles.palettes, [mapTheme]);
+
+  const pipeOutline = useMemo(() => mapTheme.obstacles.outline, [mapTheme]);
+
+
+
+  const renderedObstacles = useMemo(() => {
     const visibleObs = obstacles.current;
     const len = visibleObs.length;
-    const result: React.ReactElement[] = [];
-    const oc = currentMap.obstacleOutline;
-    const bw = scale(2);
+    const result: React.ReactNode[] = [];
+    const oc = pipeOutline;
+    const bw = POLE_BORDER;
 
     for (let idx = 0; idx < len; idx++) {
       const o = visibleObs[idx];
@@ -403,6 +1087,7 @@ export default function GameScreen() {
 
       result.push(
         <View key={o.id} style={styles.obstacleGroup}>
+          {/* === TOP OBSTACLE: ceiling to gapStart === */}
           <View style={{
             position: 'absolute' as const, left: shaftLeft, top: 0,
             width: POLE_SHAFT_W, height: topShaftH,
@@ -424,6 +1109,7 @@ export default function GameScreen() {
             backgroundColor: 'rgba(255,255,255,0.32)', borderRadius: scale(2), zIndex: 3,
           }} />
 
+          {/* === BOTTOM OBSTACLE: gapEnd to floor === */}
           <View style={{
             position: 'absolute' as const, left: capLeft, top: botCapTop,
             width: POLE_CAP_W, height: POLE_CAP_H,
@@ -456,495 +1142,495 @@ export default function GameScreen() {
       );
     }
     return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renderTick, currentMap.obstacleOutline]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderTick, buildingPalettes, pipeOutline]);
 
-  const isNewHighScore = gameStatus === 'dead' && scoreRef.current >= stats.highScore && scoreRef.current > 0;
+  const renderedClouds = useMemo(() => {
+    if (!mapTheme.clouds.visible) return null;
+    return clouds.current.map(c => (
+      <View
+        key={c.id}
+        style={[
+          styles.gameCloud,
+          {
+            left: c.x,
+            top: c.y,
+            opacity: mapTheme.clouds.opacity,
+            transform: [{ scale: c.scale }],
+          },
+        ]}
+      >
+        <View style={[styles.gcPart1, { backgroundColor: mapTheme.clouds.color }]} />
+        <View style={[styles.gcPart2, { backgroundColor: mapTheme.clouds.color }]} />
+      </View>
+    ));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderTick, mapTheme]);
+
+
+
+  const splatColors = useMemo(() => {
+    const base = currentSkin?.bodyColor ?? '#FFD84A';
+    return [base, base + 'CC', base + '99', '#FFE97A', base];
+  }, [currentSkin?.bodyColor]);
+
+  const splatSizes = useMemo(() => {
+    return Array.from({ length: 5 }, () => scale(8 + Math.random() * 6));
+  }, []);
+
+  const bgBuildings = useMemo(() => (
+    <View style={styles.bgBuildingRow} pointerEvents="none">
+      <View style={[styles.bgBuilding, { height: verticalScale(70), width: scale(34), left: scale(10), backgroundColor: mapTheme.bgBuildings.color, opacity: mapTheme.bgBuildings.opacity * 0.5 }]} />
+      <View style={[styles.bgBuilding, { height: verticalScale(100), width: scale(28), left: scale(20), backgroundColor: mapTheme.bgBuildings.color, opacity: mapTheme.bgBuildings.opacity }]} />
+      <View style={[styles.bgBuilding, { height: verticalScale(145), width: scale(22), left: scale(65), backgroundColor: mapTheme.bgBuildings.color, opacity: mapTheme.bgBuildings.opacity * 0.9 }]} />
+      <View style={[styles.bgBuilding, { height: verticalScale(85), width: scale(30), left: scale(100), backgroundColor: mapTheme.bgBuildings.color, opacity: mapTheme.bgBuildings.opacity * 0.6 }]} />
+      <View style={[styles.bgBuilding, { height: verticalScale(125), width: scale(20), left: scale(150), backgroundColor: mapTheme.bgBuildings.color, opacity: mapTheme.bgBuildings.opacity }]} />
+      <View style={[styles.bgBuilding, { height: verticalScale(160), width: scale(18), left: scale(200), backgroundColor: mapTheme.bgBuildings.color, opacity: mapTheme.bgBuildings.opacity * 1.1 }]} />
+      <View style={[styles.bgBuilding, { height: verticalScale(95), width: scale(26), left: scale(245), backgroundColor: mapTheme.bgBuildings.color, opacity: mapTheme.bgBuildings.opacity * 0.7 }]} />
+      <View style={[styles.bgBuilding, { height: verticalScale(135), width: scale(16), left: scale(290), backgroundColor: mapTheme.bgBuildings.color, opacity: mapTheme.bgBuildings.opacity }]} />
+      <View style={[styles.bgBuilding, { height: verticalScale(110), width: scale(24), left: scale(330), backgroundColor: mapTheme.bgBuildings.color, opacity: mapTheme.bgBuildings.opacity * 0.8 }]} />
+      <View style={[styles.bgBuilding, { height: verticalScale(80), width: scale(20), left: scale(370), backgroundColor: mapTheme.bgBuildings.color, opacity: mapTheme.bgBuildings.opacity * 0.6 }]} />
+      {mapTheme.id === 'gotham' && (
+        <>
+          <View style={[styles.bgBuilding, { height: verticalScale(175), width: scale(16), left: scale(45), backgroundColor: '#080818', opacity: 0.6 }]} />
+          <View style={[styles.bgBuilding, { height: verticalScale(140), width: scale(20), left: scale(120), backgroundColor: '#080818', opacity: 0.55 }]} />
+          <View style={[styles.bgBuilding, { height: verticalScale(190), width: scale(14), left: scale(185), backgroundColor: '#080818', opacity: 0.65 }]} />
+          <View style={[styles.bgBuilding, { height: verticalScale(110), width: scale(22), left: scale(260), backgroundColor: '#080818', opacity: 0.5 }]} />
+          <View style={[styles.bgBuilding, { height: verticalScale(155), width: scale(12), left: scale(340), backgroundColor: '#080818', opacity: 0.58 }]} />
+          <View style={styles.gothamMoonGlow} />
+          <View style={styles.gothamMoon} />
+        </>
+      )}
+      {mapTheme.id === 'neon' && (
+        <>
+          <View style={[styles.bgBuilding, { height: verticalScale(180), width: scale(14), left: scale(55), backgroundColor: '#0A0520', opacity: 0.7 }]} />
+          <View style={[styles.bgBuilding, { height: verticalScale(150), width: scale(18), left: scale(135), backgroundColor: '#0A0520', opacity: 0.6 }]} />
+          <View style={[styles.bgBuilding, { height: verticalScale(200), width: scale(12), left: scale(215), backgroundColor: '#0A0520', opacity: 0.75 }]} />
+          <View style={[styles.bgBuilding, { height: verticalScale(120), width: scale(20), left: scale(305), backgroundColor: '#0A0520', opacity: 0.55 }]} />
+        </>
+      )}
+    </View>
+  ), [mapTheme]);
+
+  const neonZoneOverlayEl = useMemo(() => {
+    if (!isNeonMap) return null;
+    return (
+      <View style={styles.neonZoneOverlay} pointerEvents="none">
+        <View style={[styles.neonZoneLabel, styles.neonZoneTop]}>
+          <View style={styles.neonZoneLabelRow}>
+            <BoostIcon size={moderateScale(16)} color={TRICKS.boost.color} />
+            <Text style={[styles.neonZoneLabelText, { color: TRICKS.boost.color }]}>BOOST</Text>
+          </View>
+        </View>
+        <View style={styles.neonZoneMiddleRow}>
+          <View style={[styles.neonZoneLabel, styles.neonZoneSide]}>
+            <BarrelIcon size={moderateScale(16)} color={TRICKS.barrel_left.color} />
+          </View>
+          <View style={[styles.neonZoneLabel, styles.neonZoneCenter]}>
+            <SuperFlapIcon size={moderateScale(16)} color={TRICKS.super_flap.color} />
+          </View>
+          <View style={[styles.neonZoneLabel, styles.neonZoneSide]}>
+            <SpinIcon size={moderateScale(16)} color={TRICKS.barrel_right.color} />
+          </View>
+        </View>
+        <View style={[styles.neonZoneLabel, styles.neonZoneBottom]}>
+          <View style={styles.neonZoneLabelRow}>
+            <DiveIcon size={moderateScale(16)} color={TRICKS.dive.color} />
+            <Text style={[styles.neonZoneLabelText, { color: TRICKS.dive.color }]}>DIVE</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }, [isNeonMap]);
+
+  const groundStrip = useMemo(() => (
+    <View style={[styles.groundStrip, { height: GROUND_HEIGHT }]}>
+      <View style={[styles.groundGrass, { backgroundColor: mapTheme.ground.top }]} />
+      <View style={[styles.groundDirt, { backgroundColor: mapTheme.ground.bottom }]} />
+      <View style={[styles.groundLine, { backgroundColor: mapTheme.ground.line }]} />
+    </View>
+  ), [mapTheme]);
+
+  const hudPillStyle = useMemo(() => ({
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(8),
+    borderRadius: scale(20),
+  }), []);
 
   return (
-    <View style={styles.container} testID="game-screen">
+    <View style={[styles.container, { backgroundColor: mapTheme.sky.base }]}>
       <StatusBar barStyle="light-content" />
 
-      <View style={[styles.sky, { backgroundColor: currentMap.skyTop }]} />
-      <View style={[styles.skyBottom, { backgroundColor: currentMap.skyBottom }]} />
+      <View style={[styles.skyLayer1, { backgroundColor: mapTheme.sky.layer1 }]} />
+      <Animated.View style={[styles.skyLayer2, { backgroundColor: mapTheme.sky.layer2, transform: [{ translateY: skyLayerTranslate }] }]} />
+      <View style={[styles.skyLayer3, { backgroundColor: mapTheme.sky.layer3 }]} />
+      <View style={[styles.skyHorizonGlow, { backgroundColor: mapTheme.sky.horizonGlow, opacity: mapTheme.sky.horizonOpacity }]} />
+      {bgBuildings}
 
-      <TouchableWithoutFeedback onPress={handleTap} testID="game-tap-area">
-        <View style={styles.gameArea}>
-          {renderObstacles}
+      <Animated.View
+        style={[
+          styles.gameWorld,
+          {
+            transform: [
+              { translateX: shakeX },
+              { translateY: shakeY },
+            ],
+          },
+        ]}
+      >
+        <Pressable onPressIn={(e) => handleTapRef.current(e)} testID="game-touch-area" style={styles.touchArea}>
+            {renderedClouds}
+            {renderedObstacles}
 
+            {groundStrip}
+
+            <Animated.View
+              style={[
+                styles.character,
+                {
+                  top: 0,
+                  left: baseX - GAME_CONFIG.CHARACTER_SIZE / 2,
+                  transform: [
+                    { translateX: charXAnim },
+                    { translateY: charAnim },
+                    { rotate: charRotateDeg },
+                    { rotate: charWobbleDeg },
+                    { scale: charScale },
+                    { scaleX: charStretchX },
+                    { scaleY: charStretchY },
+                  ],
+                },
+              ]}
+            >
+              <Animated.View style={isNeonMap ? {
+                transform: [{ rotate: trickSpinAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-360deg', '0deg', '360deg'] }) }],
+              } : undefined}>
+                <GameBlobSkin skinData={currentSkin} />
+              </Animated.View>
+            </Animated.View>
+
+            {showSplat && (
+              <View
+                style={[
+                  styles.splatContainer,
+                  {
+                    left: splatPosition.current.x - 40,
+                    top: splatPosition.current.y - 40,
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                {splatAnims.map((s, i) => (
+                  <Animated.View
+                    key={i}
+                    style={[
+                      styles.splatDot,
+                      {
+                        backgroundColor: splatColors[i % splatColors.length],
+                        width: splatSizes[i],
+                        height: splatSizes[i],
+                        borderRadius: scale(6),
+                        transform: [
+                          { translateX: s.x },
+                          { translateY: s.y },
+                          { scale: s.scale },
+                        ],
+                        opacity: s.opacity,
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
+
+            {floatingScores.map(fs => (
+              <Animated.View
+                key={fs.id}
+                style={[
+                  styles.floatingScore,
+                  {
+                    left: fs.x - 15,
+                    top: fs.y - 20,
+                    transform: [{ translateY: fs.anim }],
+                    opacity: fs.opacityAnim,
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                <Text style={styles.floatingScoreText}>+1</Text>
+              </Animated.View>
+            ))}
+
+            {showLevelUp && (
+              <Animated.View
+                style={[
+                  styles.levelUpOverlay,
+                  {
+                    opacity: levelUpAnim,
+                    transform: [{ scale: levelUpScale }],
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                <View style={[styles.levelUpCard, { borderColor: currentLevel.color + '80', shadowColor: currentLevel.color }]}>
+                  <View style={[styles.levelUpGlow, { backgroundColor: currentLevel.color + '15' }]} />
+                  <Text style={[styles.levelUpTitle, { color: currentLevel.color }]}>LEVEL {currentLevel.level}</Text>
+                  <Text style={styles.levelUpName}>{currentLevel.name}</Text>
+                </View>
+              </Animated.View>
+            )}
+
+            {gameStatus === 'playing' && neonZoneOverlayEl}
+
+            {activeTrick && (
+              <Animated.View
+                style={[
+                  styles.trickLabelOverlay,
+                  {
+                    opacity: trickLabelAnim,
+                    transform: [{ scale: trickLabelScale }],
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                <View style={[styles.trickLabelCard, { borderColor: activeTrick.info.color, shadowColor: activeTrick.info.color }]}>
+                  <TrickIcon type={activeTrick.info.emoji} size={moderateScale(18)} color={activeTrick.info.color} />
+                  <Text style={[styles.trickLabelText, { color: activeTrick.info.color }]}>{activeTrick.info.name}</Text>
+                </View>
+              </Animated.View>
+            )}
+
+            {isNeonMap && comboCount > 1 && (
+              <Animated.View
+                style={[
+                  styles.comboOverlay,
+                  { opacity: comboAnim, transform: [{ scale: comboAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] },
+                ]}
+                pointerEvents="none"
+              >
+                <View style={styles.comboBadge}>
+                  <Text style={styles.comboText}>{comboCount}x COMBO</Text>
+                </View>
+              </Animated.View>
+            )}
+
+            {gameStatus === 'ready' && (
+              <View style={styles.readyOverlay}>
+                <Animated.View style={{ transform: [{ scale: readyPulse }] }}>
+                  <View style={styles.readyCard}>
+                    <Text style={styles.readyText}>Tap to start</Text>
+                    <Text style={styles.readySubtext}>{isNeonMap ? 'Tap zones for tricks!' : 'Tap left or right to steer'}</Text>
+                    {isNeonMap && (
+                      <View style={styles.readyTrickHints}>
+                        <View style={styles.readyHintRow}>
+                          <BoostIcon size={moderateScale(14)} color="rgba(255,255,255,0.55)" />
+                          <Text style={styles.readyHintLine}>Top = Boost</Text>
+                          <DiveIcon size={moderateScale(14)} color="rgba(255,255,255,0.55)" />
+                          <Text style={styles.readyHintLine}>Bottom = Dive</Text>
+                        </View>
+                        <View style={styles.readyHintRow}>
+                          <BarrelIcon size={moderateScale(14)} color="rgba(255,255,255,0.55)" />
+                          <Text style={styles.readyHintLine}>Left = Barrel</Text>
+                          <SpinIcon size={moderateScale(14)} color="rgba(255,255,255,0.55)" />
+                          <Text style={styles.readyHintLine}>Right = Spin</Text>
+                        </View>
+                        <View style={styles.readyHintRow}>
+                          <SuperFlapIcon size={moderateScale(14)} color="rgba(255,255,255,0.55)" />
+                          <Text style={styles.readyHintLine}>Center = Super Flap</Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                </Animated.View>
+              </View>
+            )}
+        </Pressable>
+
+        <View style={[styles.hud, { paddingTop: safeTop + verticalScale(4) }]} pointerEvents="box-none">
+          <View style={styles.hudRow} pointerEvents="box-none">
+            <TouchableOpacity
+              style={[styles.hudPill, hudPillStyle]}
+              onPress={handlePause}
+              testID="pause-button"
+              activeOpacity={0.7}
+            >
+              {gameStatus === 'paused' ? (
+                <Play size={moderateScale(15)} color={GameColors.uiWhite} fill={GameColors.uiWhite} />
+              ) : (
+                <Pause size={moderateScale(15)} color={GameColors.uiWhite} fill={GameColors.uiWhite} />
+              )}
+            </TouchableOpacity>
+
+            <View style={[styles.hudCenter, hudPillStyle]}>
+              <Animated.Text
+                style={[
+                  styles.hudScore,
+                  { transform: [{ scale: scorePopScale }] },
+                ]}
+              >
+                {score}
+              </Animated.Text>
+              <View style={[styles.hudLevelDot, { backgroundColor: currentLevel.color + 'CC' }]}>
+                <Text style={styles.hudLevelText}>LV{currentLevel.level}</Text>
+              </View>
+            </View>
+
+            <View style={styles.hudRightGroup}>
+              <TouchableOpacity
+                style={[styles.hudPill, styles.hudMusicBtn]}
+                onPress={handleMusicToggle}
+                activeOpacity={0.7}
+                testID="music-toggle"
+              >
+                {musicOn ? (
+                  <Volume2 size={moderateScale(14)} color={GameColors.uiYellow} />
+                ) : (
+                  <VolumeX size={moderateScale(14)} color="rgba(255,255,255,0.4)" />
+                )}
+              </TouchableOpacity>
+              <View style={[styles.hudPill, hudPillStyle]}>
+                <Ruler size={moderateScale(13)} color={GameColors.uiYellow} />
+                <Text style={styles.hudPillText}>{formattedDist}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {gameStatus === 'paused' && (
+          <View style={styles.pauseOverlay}>
+            <View style={[styles.pauseCard, { width: MODAL.width, maxWidth: MODAL.width }]}>
+              <View style={styles.pauseCardGlow} />
+              <Text style={styles.pauseTitle}>PAUSED</Text>
+              <TouchableOpacity style={styles.pauseBtn} onPress={handlePause} activeOpacity={0.85}>
+                <Play size={moderateScale(20)} color={GameColors.uiWhite} fill={GameColors.uiWhite} />
+                <Text style={styles.pauseBtnText}>RESUME</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.pauseBtn, styles.pauseBtnSecondary]} onPress={handleHome} activeOpacity={0.85}>
+                <Home size={moderateScale(18)} color={GameColors.uiDark} />
+                <Text style={styles.pauseBtnTextSecondary}>HOME</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {gameStatus === 'over' && (
           <Animated.View
             style={[
-              styles.character,
-              {
-                top: 0,
-                left: getCharX() - GAME_CONFIG.CHARACTER_SIZE / 2,
-                transform: [
-                  { translateY: charAnim },
-                  { scale: charScale },
-                ],
-              },
+              styles.gameOverOverlay,
+              { opacity: gameOverOpacity, paddingTop: safeTop, paddingBottom: safeBottom },
             ]}
           >
-            <BlobCharacter
-              skin={skin}
-              size={GAME_CONFIG.CHARACTER_SIZE}
-              rotateAnim={charRotate}
-              isDead={gameStatus === 'dead'}
-            />
-          </Animated.View>
-
-          <View style={[styles.ground, {
-            backgroundColor: currentMap.ground,
-            height: GROUND_HEIGHT,
-            bottom: 0,
-          }]}>
-            <View style={[styles.groundTop, { backgroundColor: currentMap.groundTop }]} />
-            <View style={[styles.groundAccent, { backgroundColor: currentMap.groundAccent }]} />
-          </View>
-        </View>
-      </TouchableWithoutFeedback>
-
-      {gameStatus !== 'idle' && (
-        <Animated.View style={[styles.hud, { opacity: hudOpacity, top: safeTop + verticalScale(8) }]}>
-          <View style={styles.hudLeft}>
-            <Animated.View style={[styles.scorePill, { transform: [{ scale: scorePopScale }] }]}>
-              <Text style={styles.scoreText}>{score}</Text>
-            </Animated.View>
-          </View>
-          <View style={styles.hudRight}>
-            <View style={styles.coinPill}>
-              <Coins size={moderateScale(13)} color="#D4920B" />
-              <Text style={styles.coinText}>{displayCoins}</Text>
-            </View>
-            <View style={styles.levelPill}>
-              <Text style={styles.levelText}>Lv.{currentLevel}</Text>
-            </View>
-          </View>
-        </Animated.View>
-      )}
-
-      {gameStatus === 'playing' && (
-        <View style={[styles.pauseArea, { top: safeTop + verticalScale(8) }]}>
-          <TouchableOpacity style={styles.pauseBtn} onPress={handlePause} activeOpacity={0.7}>
-            <Pause size={moderateScale(18)} color="#FFF" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.pauseBtn} onPress={handleToggleMusic} activeOpacity={0.7}>
-            {musicOn ? (
-              <Volume2 size={moderateScale(18)} color="#FFF" />
-            ) : (
-              <VolumeX size={moderateScale(18)} color="#FFF" />
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {gameStatus === 'idle' && (
-        <View style={styles.idleOverlay}>
-          <View style={styles.idleCard}>
-            <Text style={styles.idleTitle}>Gap Dash</Text>
-            <Text style={styles.idleSubtitle}>Tap anywhere to start!</Text>
-            <View style={styles.idleSkinPreview}>
-              <BlobCharacter skin={skin} size={scale(80)} />
-            </View>
-            <Text style={styles.idleHint}>{skin.name} • {currentMap.name}</Text>
-          </View>
-        </View>
-      )}
-
-      {isPaused && gameStatus === 'playing' && (
-        <View style={styles.pauseOverlay}>
-          <View style={styles.pauseCard}>
-            <Text style={styles.pauseTitle}>Paused</Text>
-            <TouchableOpacity style={styles.pauseResumeBtn} onPress={handlePause} activeOpacity={0.8}>
-              <Play size={moderateScale(20)} color="#FFF" />
-              <Text style={styles.pauseResumeBtnText}>Resume</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.pauseHomeBtn} onPress={handleGoHome} activeOpacity={0.8}>
-              <Home size={moderateScale(16)} color="#666" />
-              <Text style={styles.pauseHomeBtnText}>Quit</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {gameStatus === 'dead' && (
-        <Animated.View style={[styles.deathOverlay, { opacity: deathOverlayOpacity }]}>
-          <View style={styles.deathCard}>
-            {isNewHighScore && (
-              <View style={styles.newHighBadge}>
-                <Trophy size={moderateScale(14)} color="#FFD700" />
-                <Text style={styles.newHighText}>New Best!</Text>
-              </View>
-            )}
-            <Text style={styles.deathTitle}>Game Over</Text>
-
-            <View style={styles.deathStatsRow}>
-              <View style={styles.deathStatItem}>
-                <Text style={styles.deathStatValue}>{scoreRef.current}</Text>
-                <Text style={styles.deathStatLabel}>Score</Text>
-              </View>
-              <View style={styles.deathStatDivider} />
-              <View style={styles.deathStatItem}>
-                <Text style={styles.deathStatValue}>{Math.max(stats.highScore, scoreRef.current)}</Text>
-                <Text style={styles.deathStatLabel}>Best</Text>
-              </View>
-              <View style={styles.deathStatDivider} />
-              <View style={styles.deathStatItem}>
-                <View style={styles.deathCoinRow}>
-                  <Coins size={moderateScale(14)} color="#D4920B" />
-                  <Text style={styles.deathStatValue}>+{coinsEarnedRef.current}</Text>
+            <ScrollView
+              contentContainerStyle={styles.gameOverScrollContent}
+              showsVerticalScrollIndicator={false}
+              bounces={true}
+              alwaysBounceVertical={false}
+            >
+              <Animated.View
+                style={[
+                  styles.gameOverCard,
+                  {
+                    width: MODAL.width,
+                    maxWidth: MODAL.width,
+                    transform: [{ scale: gameOverScale }],
+                  },
+                ]}
+              >
+                <View style={styles.goCardTopAccent} />
+                <Text style={styles.gameOverTitle}>Splat!</Text>
+                <Text style={styles.gameOverSubtitle}>You crashed into a building!</Text>
+                <View style={[styles.goLevelReached, { backgroundColor: currentLevel.color + '15', borderColor: currentLevel.color + '40' }]}>
+                  <Text style={[styles.goLevelReachedText, { color: currentLevel.color }]}>Level {currentLevel.level} — {currentLevel.name}</Text>
                 </View>
-                <Text style={styles.deathStatLabel}>Coins</Text>
-              </View>
-            </View>
 
-            <View style={styles.deathButtons}>
-              <TouchableOpacity style={styles.retryButton} onPress={handleRestart} activeOpacity={0.8} testID="retry-button">
-                <RotateCcw size={moderateScale(20)} color="#FFF" strokeWidth={2.5} />
-                <Text style={styles.retryButtonText}>Play Again</Text>
-              </TouchableOpacity>
+                <View style={styles.goStatsRow}>
+                  <View style={styles.goStatItem}>
+                    <View style={[styles.goStatIcon, { backgroundColor: '#FFF3D4' }]}>
+                      <Trophy size={moderateScale(16)} color={GameColors.uiOrange} />
+                    </View>
+                    <Text style={styles.goStatValue}>{score}</Text>
+                    <Text style={styles.goStatLabel}>SCORE</Text>
+                  </View>
+                  <View style={styles.goStatItem}>
+                    <View style={[styles.goStatIcon, { backgroundColor: '#FFF8D4' }]}>
+                      <Star size={moderateScale(16)} color={GameColors.badgeGold} fill={GameColors.badgeGold} />
+                    </View>
+                    <Text style={styles.goStatValue}>{Math.max(stats.bestScore, score)}</Text>
+                    <Text style={styles.goStatLabel}>BEST</Text>
+                  </View>
+                  <View style={styles.goStatItem}>
+                    <View style={[styles.goStatIcon, { backgroundColor: '#E8F4FD' }]}>
+                      <Ruler size={moderateScale(16)} color={GameColors.cardBorder} />
+                    </View>
+                    <Text style={styles.goStatValue}>{formattedDist}</Text>
+                    <Text style={styles.goStatLabel}>DIST</Text>
+                  </View>
+                </View>
 
-              <TouchableOpacity style={styles.homeButton} onPress={handleGoHome} activeOpacity={0.8} testID="home-button">
-                <Home size={moderateScale(18)} color="#666" />
-                <Text style={styles.homeButtonText}>Home</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Animated.View>
-      )}
+                {coinsEarned > 0 && (
+                  <View style={styles.coinsEarnedRow}>
+                    <Coins size={moderateScale(18)} color="#D4920B" />
+                    <Text style={styles.coinsEarnedText}>+{coinsEarned}</Text>
+                    <Text style={styles.coinsEarnedLabel}>coins earned</Text>
+                  </View>
+                )}
+
+                {newBadges.length > 0 && (
+                  <View style={styles.newBadgesSection}>
+                    <Text style={styles.newBadgesTitle}>New Badges!</Text>
+                    <View style={styles.badgeRow}>
+                      {newBadges.map(bId => {
+                        const badge = BADGES.find(b => b.id === bId);
+                        if (!badge) return null;
+                        return (
+                          <View key={bId} style={[styles.badgeChip, { backgroundColor: badge.color + '20' }]}>
+                            <Text style={styles.badgeIcon}>{badge.icon}</Text>
+                            <Text style={[styles.badgeName, { color: badge.color }]}>{badge.name}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.goButtons}>
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={handleRestart}
+                    testID="retry-button"
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.retryButtonHighlight} />
+                    <RotateCcw size={moderateScale(20)} color={GameColors.uiWhite} />
+                    <Text style={styles.retryText}>TRY AGAIN</Text>
+                  </TouchableOpacity>
+                  <View style={styles.goBottomRow}>
+                    <TouchableOpacity
+                      style={styles.homeButton}
+                      onPress={handleHome}
+                      testID="home-button"
+                      activeOpacity={0.85}
+                    >
+                      <Home size={moderateScale(18)} color={GameColors.uiDark} />
+                      <Text style={styles.homeText}>HOME</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleShareGameOver}
+                      activeOpacity={0.85}
+                      testID="share-game-over"
+                    >
+                      <Animated.View style={[styles.shareButton, { transform: [{ scale: shareScaleAnim }] }]}>
+                        <CupSoda size={moderateScale(16)} color={GameColors.uiWhite} />
+                        <Text style={styles.shareText}>SHARE</Text>
+                      </Animated.View>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </Animated.View>
+            </ScrollView>
+          </Animated.View>
+        )}
+      </Animated.View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  sky: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '60%',
-  },
-  skyBottom: {
-    position: 'absolute',
-    top: '40%',
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  gameArea: {
-    flex: 1,
-  },
-  obstacleGroup: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  character: {
-    position: 'absolute',
-    zIndex: 10,
-  },
-  ground: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    zIndex: 5,
-  },
-  groundTop: {
-    height: scale(6),
-    width: '100%',
-  },
-  groundAccent: {
-    height: scale(3),
-    width: '100%',
-    opacity: 0.6,
-  },
-  hud: {
-    position: 'absolute',
-    left: scale(16),
-    right: scale(16),
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 20,
-  },
-  hudLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  hudRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale(8),
-  },
-  scorePill: {
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: scale(16),
-    paddingVertical: verticalScale(6),
-    borderRadius: scale(20),
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  scoreText: {
-    fontSize: moderateScale(24),
-    fontWeight: '900' as const,
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-  },
-  coinPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: scale(10),
-    paddingVertical: verticalScale(5),
-    borderRadius: scale(16),
-    gap: scale(4),
-    borderWidth: 1,
-    borderColor: 'rgba(255,216,74,0.3)',
-  },
-  coinText: {
-    fontSize: moderateScale(13),
-    fontWeight: '800' as const,
-    color: '#FFD84A',
-  },
-  levelPill: {
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: scale(10),
-    paddingVertical: verticalScale(5),
-    borderRadius: scale(16),
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  levelText: {
-    fontSize: moderateScale(12),
-    fontWeight: '700' as const,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  pauseArea: {
-    position: 'absolute',
-    right: scale(16),
-    flexDirection: 'row',
-    gap: scale(8),
-    zIndex: 25,
-  },
-  pauseBtn: {
-    width: scale(38),
-    height: scale(38),
-    borderRadius: scale(19),
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  idleOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    zIndex: 30,
-  },
-  idleCard: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: scale(28),
-    padding: scale(28),
-    alignItems: 'center',
-    width: scale(280),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 15,
-  },
-  idleTitle: {
-    fontSize: moderateScale(32),
-    fontWeight: '900' as const,
-    color: '#1A1A2E',
-    letterSpacing: -1,
-    marginBottom: verticalScale(6),
-  },
-  idleSubtitle: {
-    fontSize: moderateScale(15),
-    fontWeight: '600' as const,
-    color: 'rgba(26,26,46,0.5)',
-    marginBottom: verticalScale(20),
-  },
-  idleSkinPreview: {
-    marginBottom: verticalScale(16),
-  },
-  idleHint: {
-    fontSize: moderateScale(12),
-    fontWeight: '600' as const,
-    color: 'rgba(26,26,46,0.4)',
-  },
-  pauseOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    zIndex: 30,
-  },
-  pauseCard: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: scale(24),
-    padding: scale(28),
-    alignItems: 'center',
-    width: scale(260),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  pauseTitle: {
-    fontSize: moderateScale(28),
-    fontWeight: '900' as const,
-    color: '#1A1A2E',
-    marginBottom: verticalScale(24),
-  },
-  pauseResumeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2A8A4A',
-    paddingVertical: verticalScale(14),
-    paddingHorizontal: scale(32),
-    borderRadius: scale(18),
-    gap: scale(10),
-    width: '100%',
-    marginBottom: verticalScale(12),
-  },
-  pauseResumeBtnText: {
-    fontSize: moderateScale(17),
-    fontWeight: '800' as const,
-    color: '#FFFFFF',
-  },
-  pauseHomeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: verticalScale(10),
-    gap: scale(8),
-  },
-  pauseHomeBtnText: {
-    fontSize: moderateScale(14),
-    fontWeight: '600' as const,
-    color: '#666',
-  },
-  deathOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    zIndex: 30,
-  },
-  deathCard: {
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderRadius: scale(28),
-    padding: scale(24),
-    alignItems: 'center',
-    width: Math.min(SCREEN_WIDTH * 0.88, 380),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.3,
-    shadowRadius: 24,
-    elevation: 15,
-  },
-  newHighBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF8DC',
-    paddingHorizontal: scale(14),
-    paddingVertical: verticalScale(5),
-    borderRadius: scale(14),
-    gap: scale(6),
-    marginBottom: verticalScale(8),
-    borderWidth: 1.5,
-    borderColor: '#FFD700',
-  },
-  newHighText: {
-    fontSize: moderateScale(13),
-    fontWeight: '800' as const,
-    color: '#B8860B',
-  },
-  deathTitle: {
-    fontSize: moderateScale(30),
-    fontWeight: '900' as const,
-    color: '#1A1A2E',
-    letterSpacing: -0.5,
-    marginBottom: verticalScale(20),
-  },
-  deathStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    marginBottom: verticalScale(24),
-  },
-  deathStatItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  deathStatDivider: {
-    width: 1,
-    height: verticalScale(36),
-    backgroundColor: 'rgba(0,0,0,0.1)',
-  },
-  deathStatValue: {
-    fontSize: moderateScale(24),
-    fontWeight: '900' as const,
-    color: '#1A1A2E',
-    letterSpacing: -0.5,
-  },
-  deathStatLabel: {
-    fontSize: moderateScale(11),
-    fontWeight: '600' as const,
-    color: 'rgba(26,26,46,0.45)',
-    marginTop: verticalScale(3),
-  },
-  deathCoinRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale(4),
-  },
-  deathButtons: {
-    width: '100%',
-    gap: verticalScale(10),
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2A8A4A',
-    paddingVertical: verticalScale(16),
-    borderRadius: scale(20),
-    gap: scale(10),
-    shadowColor: '#1A6A30',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  retryButtonText: {
-    fontSize: moderateScale(18),
-    fontWeight: '800' as const,
-    color: '#FFFFFF',
-  },
-  homeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: verticalScale(12),
-    gap: scale(8),
-  },
-  homeButtonText: {
-    fontSize: moderateScale(15),
-    fontWeight: '600' as const,
-    color: '#666',
-  },
-});
