@@ -198,6 +198,69 @@ export async function purchaseCoinPack(offering: CoinPackOffering): Promise<Purc
   }
 }
 
+export const CREDITS_PER_PURCHASE = 100;
+
+export async function purchaseCredits(): Promise<{ success: boolean; credits: number }> {
+  if (!isConfigured) {
+    console.warn('[Purchases] Not configured, cannot purchase credits');
+    return { success: false, credits: 0 };
+  }
+
+  try {
+    const offerings = await Purchases.getOfferings();
+    const offering = offerings.current ?? offerings.all[OFFERING_ID];
+    if (!offering) {
+      console.warn('[Purchases] No offering found for credits purchase');
+      return { success: false, credits: 0 };
+    }
+
+    const targetProductId = 'blobdash_credits_100';
+    const rcPkg = offering.availablePackages.find(
+      pkg => pkg.product.identifier === targetProductId
+    );
+
+    if (!rcPkg) {
+      console.warn('[Purchases] No package found for product:', targetProductId, 'Available:', offering.availablePackages.map(p => p.product.identifier));
+      return { success: false, credits: 0 };
+    }
+
+    console.log('[Purchases] Purchasing credits package:', rcPkg.identifier, 'Product:', rcPkg.product.identifier);
+    const purchaseResult = await Purchases.purchasePackage(rcPkg);
+
+    const allTxIds = purchaseResult.customerInfo.nonSubscriptionTransactions;
+    let txId = '';
+    if (allTxIds && allTxIds.length > 0) {
+      const relevantTx = allTxIds
+        .filter(tx => tx.productIdentifier === targetProductId)
+        .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime());
+      if (relevantTx.length > 0) {
+        txId = relevantTx[0].transactionIdentifier;
+      }
+    }
+
+    if (!txId) {
+      txId = purchaseResult.customerInfo.originalAppUserId + '_' + targetProductId + '_' + Date.now().toString();
+    }
+
+    const processedTxs = await loadProcessedTransactions();
+    if (processedTxs.has(txId)) {
+      console.warn('[Purchases] Duplicate credits transaction detected:', txId);
+      return { success: false, credits: 0 };
+    }
+
+    await saveProcessedTransaction(txId);
+    console.log('[Purchases] Credits purchase success. Credits:', CREDITS_PER_PURCHASE, 'TxId:', txId);
+    return { success: true, credits: CREDITS_PER_PURCHASE };
+  } catch (e: any) {
+    if (e?.userCancelled || e?.code === 1 || e?.code === '1') {
+      console.log('[Purchases] User cancelled credits purchase');
+    } else {
+      console.error('[Purchases] Credits purchase error:', JSON.stringify(e, null, 2));
+    }
+    return { success: false, credits: 0 };
+  }
+}
+
 export async function restorePurchases(): Promise<{ success: boolean; message: string }> {
   if (!isConfigured) {
     console.warn('[Purchases] Not configured, cannot restore');
