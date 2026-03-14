@@ -14,15 +14,6 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
-      <Stack.Screen
-        name="game"
-        options={{
-          animation: 'fade',
-          gestureEnabled: false,
-          fullScreenGestureEnabled: false,
-          animationTypeForReplace: 'push',
-        }}
-      />
     </Stack>
   );
 }
