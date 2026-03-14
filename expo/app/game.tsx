@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pause, Play, Home, RotateCcw, Trophy, Star, Ruler, Volume2, VolumeX, CupSoda, Coins } from 'lucide-react-native';
 import { BoostIcon, DiveIcon, BarrelIcon, SpinIcon, SuperFlapIcon } from '@/components/TrickIcons';
 import { GameColors } from '@/constants/colors';
-import { GAME_CONFIG, BLOCK_COLOR_PAIRS, LEVELS, LevelConfig } from '@/constants/game';
+import { GAME_CONFIG, BLOCK_COLOR_PAIRS, LEVELS, LevelConfig, OBSTACLE_TUNING } from '@/constants/game';
 import { BADGES } from '@/constants/badges';
 import { useGameState, useFormattedDistance } from '@/providers/GameStateProvider';
 import BlobSkin from '@/components/BlobSkin';
@@ -347,23 +347,25 @@ export default function GameScreen() {
   const spawnObstacle = useCallback(() => {
     const lvl = levelRef.current;
     const gapSize = lvl.fastGap;
-    const topBound = safeTop + 60;
-    const bottomBound = SCREEN_HEIGHT - GROUND_HEIGHT - 30;
-    const minGapY = topBound + gapSize / 2;
-    const maxGapY = bottomBound - gapSize / 2;
+    const ceilingY = safeTop;
+    const floorY = SCREEN_HEIGHT - GROUND_HEIGHT;
+    const gapCenterMin = ceilingY + OBSTACLE_TUNING.GAP_CENTER_MIN_PADDING + gapSize / 2;
+    const gapCenterMax = floorY - OBSTACLE_TUNING.GAP_CENTER_MAX_PADDING - gapSize / 2;
+    const safeMin = Math.min(gapCenterMin, gapCenterMax);
+    const safeMax = Math.max(gapCenterMin, gapCenterMax);
     const shiftFactor = 0.45 + (lvl.level - 1) * 0.06;
-    const maxShift = (maxGapY - minGapY) * Math.min(shiftFactor, 0.8);
+    const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.8);
     const targetY = lastGapY.current + (Math.random() - 0.5) * maxShift * 2;
-    const gapY = Math.max(minGapY, Math.min(maxGapY, targetY));
-    lastGapY.current = gapY;
+    const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
+    lastGapY.current = gapCenter;
     const pair = BLOCK_COLOR_PAIRS[obstacleIdCounter.current % BLOCK_COLOR_PAIRS.length];
     const angleRange = Math.min(3 + (lvl.level - 1) * 1.2, 8);
     const pipeAngle = (Math.random() - 0.5) * angleRange;
     obstacles.current.push({
       id: obstacleIdCounter.current++,
       x: SCREEN_WIDTH + 50,
-      gapY,
-      gapSize: gapSize,
+      gapY: gapCenter,
+      gapSize,
       color1: pair[0],
       color2: pair[1],
       passed: false,
@@ -374,45 +376,35 @@ export default function GameScreen() {
   const checkCollision = useCallback((cy: number, obs: Obstacle[]): boolean => {
     const hitSize = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
     const cx = getCharX();
+    const insetX = scale(OBSTACLE_TUNING.HITBOX_INSET_X);
+    const insetY = scale(OBSTACLE_TUNING.HITBOX_INSET_Y);
+    const forgive = scale(OBSTACLE_TUNING.PLAYER_FORGIVENESS);
     const halfHit = hitSize / 2;
-    const charLeft = cx - halfHit;
-    const charRight = cx + halfHit;
-    const charTop = cy - halfHit;
-    const charBottom = cy + halfHit;
+    const charLeft = cx - halfHit + forgive;
+    const charRight = cx + halfHit - forgive;
+    const charTop = cy - halfHit + forgive;
+    const charBottom = cy + halfHit - forgive;
 
-    if (charTop <= safeTop - 6 || charBottom >= SCREEN_HEIGHT - GROUND_HEIGHT + 4) {
+    const ceilingY = safeTop;
+    const floorY = SCREEN_HEIGHT - GROUND_HEIGHT;
+    if (charTop <= ceilingY || charBottom >= floorY) {
       return true;
     }
 
     const capHalfW = POLE_CAP_W / 2;
-    const shaftHalfW = POLE_SHAFT_W / 2;
-    const baseHalfW = POLE_BASE_W / 2;
-    const hitBuffer = scale(4);
-    const vertToleranceTop = scale(2);
-    const vertToleranceBot = scale(1);
 
     for (let oi = 0; oi < obs.length; oi++) {
       const o = obs[oi];
       const gap = o.gapSize ?? GAME_CONFIG.OBSTACLE_GAP;
-      const gapTopEdge = o.gapY - gap / 2;
-      const gapBotEdge = o.gapY + gap / 2;
+      const gapStart = o.gapY - gap / 2;
+      const gapEnd = o.gapY + gap / 2;
 
-      const capColLeft = o.x - capHalfW - hitBuffer;
-      const capColRight = o.x + capHalfW + hitBuffer;
-      const shaftColLeft = o.x - shaftHalfW - hitBuffer;
-      const shaftColRight = o.x + shaftHalfW + hitBuffer;
-      const baseColLeft = o.x - baseHalfW - hitBuffer;
-      const baseColRight = o.x + baseHalfW + hitBuffer;
+      const pipeLeft = o.x - capHalfW + insetX;
+      const pipeRight = o.x + capHalfW - insetX;
 
-      if (charRight > capColLeft && charLeft < capColRight) {
-        if (charTop < gapTopEdge - vertToleranceTop) return true;
-        if (charBottom > gapBotEdge + vertToleranceBot) return true;
-      } else if (charRight > baseColLeft && charLeft < baseColRight) {
-        if (charTop < gapTopEdge - POLE_CAP_H) return true;
-        if (charBottom > gapBotEdge + POLE_CAP_H) return true;
-      } else if (charRight > shaftColLeft && charLeft < shaftColRight) {
-        if (charTop < gapTopEdge - POLE_CAP_H) return true;
-        if (charBottom > gapBotEdge + POLE_CAP_H) return true;
+      if (charRight > pipeLeft && charLeft < pipeRight) {
+        if (charTop < gapStart + insetY) return true;
+        if (charBottom > gapEnd - insetY) return true;
       }
     }
     return false;
@@ -1077,18 +1069,25 @@ export default function GameScreen() {
       if (o.x < -POLE_CAP_W - 20 || o.x > SCREEN_WIDTH + POLE_CAP_W + 20) continue;
       const palette = buildingPalettes[o.id % buildingPalettes.length];
       const gap = o.gapSize ?? GAME_CONFIG.OBSTACLE_GAP;
-      const gapTop = o.gapY - gap / 2;
-      const botTop = o.gapY + gap / 2;
-      const botH = SCREEN_HEIGHT - botTop;
+      const gapStart = o.gapY - gap / 2;
+      const gapEnd = o.gapY + gap / 2;
+      const floorY = SCREEN_HEIGHT - GROUND_HEIGHT;
 
       const capLeft = o.x - POLE_CAP_W / 2;
       const shaftLeft = o.x - POLE_SHAFT_W / 2;
       const baseLeft = o.x - POLE_BASE_W / 2;
-      const topShaftH = Math.max(0, gapTop - POLE_CAP_H);
-      const botShaftH = Math.max(0, botH - POLE_CAP_H - POLE_BASE_H);
+
+      const topCapTop = gapStart - POLE_CAP_H;
+      const topShaftH = Math.max(0, topCapTop);
+
+      const botCapTop = gapEnd;
+      const botShaftTop = gapEnd + POLE_CAP_H;
+      const botShaftH = Math.max(0, floorY - botShaftTop - POLE_BASE_H);
+      const botBaseTop = botShaftTop + botShaftH;
 
       result.push(
         <View key={o.id} style={styles.obstacleGroup}>
+          {/* === TOP OBSTACLE: ceiling to gapStart === */}
           <View style={{
             position: 'absolute' as const, left: shaftLeft, top: 0,
             width: POLE_SHAFT_W, height: topShaftH,
@@ -1096,7 +1095,7 @@ export default function GameScreen() {
             borderLeftWidth: bw, borderRightWidth: bw,
           }} />
           <View style={{
-            position: 'absolute' as const, left: capLeft, top: topShaftH,
+            position: 'absolute' as const, left: capLeft, top: topCapTop,
             width: POLE_CAP_W, height: POLE_CAP_H,
             backgroundColor: palette.ledge, borderColor: oc,
             borderWidth: bw, borderRadius: POLE_CAP_RADIUS, zIndex: 2,
@@ -1105,13 +1104,14 @@ export default function GameScreen() {
           }} />
           <View style={{
             position: 'absolute' as const,
-            left: capLeft + bw + scale(3), top: topShaftH + bw + scale(1),
+            left: capLeft + bw + scale(3), top: topCapTop + bw + scale(1),
             width: POLE_CAP_W - bw * 2 - scale(6), height: scale(3),
             backgroundColor: 'rgba(255,255,255,0.32)', borderRadius: scale(2), zIndex: 3,
           }} />
 
+          {/* === BOTTOM OBSTACLE: gapEnd to floor === */}
           <View style={{
-            position: 'absolute' as const, left: capLeft, top: botTop,
+            position: 'absolute' as const, left: capLeft, top: botCapTop,
             width: POLE_CAP_W, height: POLE_CAP_H,
             backgroundColor: palette.ledge, borderColor: oc,
             borderWidth: bw, borderRadius: POLE_CAP_RADIUS, zIndex: 2,
@@ -1120,18 +1120,18 @@ export default function GameScreen() {
           }} />
           <View style={{
             position: 'absolute' as const,
-            left: capLeft + bw + scale(3), top: botTop + bw + scale(1),
+            left: capLeft + bw + scale(3), top: botCapTop + bw + scale(1),
             width: POLE_CAP_W - bw * 2 - scale(6), height: scale(3),
             backgroundColor: 'rgba(255,255,255,0.32)', borderRadius: scale(2), zIndex: 3,
           }} />
           <View style={{
-            position: 'absolute' as const, left: shaftLeft, top: botTop + POLE_CAP_H,
+            position: 'absolute' as const, left: shaftLeft, top: botShaftTop,
             width: POLE_SHAFT_W, height: botShaftH,
             backgroundColor: palette.body, borderColor: oc,
             borderLeftWidth: bw, borderRightWidth: bw,
           }} />
           <View style={{
-            position: 'absolute' as const, left: baseLeft, top: botTop + POLE_CAP_H + botShaftH,
+            position: 'absolute' as const, left: baseLeft, top: botBaseTop,
             width: POLE_BASE_W, height: POLE_BASE_H,
             backgroundColor: palette.body, borderColor: oc,
             borderWidth: bw, borderTopWidth: 0,

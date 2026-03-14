@@ -169,6 +169,16 @@ export const LEVELS: LevelConfig[] = [
   },
 ];
 
+export const OBSTACLE_TUNING = {
+  GAP_CENTER_MIN_PADDING: 80,
+  GAP_CENTER_MAX_PADDING: 50,
+  PIPE_WIDTH: 58,
+  PIPE_CAP_HEIGHT: 18,
+  HITBOX_INSET_X: 6,
+  HITBOX_INSET_Y: 8,
+  PLAYER_FORGIVENESS: 4,
+} as const;
+
 export const BLOCK_COLORS = [
   '#FF6B8A',
   '#2DD4A8',
