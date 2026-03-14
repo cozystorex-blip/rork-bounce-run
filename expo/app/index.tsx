@@ -1,192 +1,264 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Animated,
+  ScrollView,
   StatusBar,
-  ActivityIndicator,
   Alert,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Coins, Plus, RotateCcw, ShieldCheck, CreditCard } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { useMutation } from '@tanstack/react-query';
+import { Play, Coins, Trophy, ShoppingBag, Lock, Check, Map } from 'lucide-react-native';
 import { useGameState } from '@/providers/GameStateProvider';
-import { purchaseCredits, restorePurchases, CREDITS_PER_PURCHASE, isPurchaseAvailable } from '@/utils/purchases';
+import { BlobCharacter } from '@/components/BlobCharacter';
+import { SKINS, getSkinById } from '@/constants/skins';
+import { MAPS, getMapById } from '@/constants/maps';
+import { GameColors } from '@/constants/colors';
 import { scale, verticalScale, moderateScale } from '@/constants/layout';
 
-export default function PurchaseScreen() {
+export default function HomeScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { stats, addCoins } = useGameState();
-  const canPurchase = isPurchaseAvailable();
+  const { stats, selectSkin, unlockSkin, spendCoins, selectMap } = useGameState();
 
-  const headerScale = useRef(new Animated.Value(0)).current;
-  const balanceY = useRef(new Animated.Value(30)).current;
-  const balanceOpacity = useRef(new Animated.Value(0)).current;
-  const buttonsY = useRef(new Animated.Value(40)).current;
+  const skin = useMemo(() => getSkinById(stats.selectedSkin), [stats.selectedSkin]);
+  const currentMap = useMemo(() => getMapById(stats.selectedMap), [stats.selectedMap]);
+
+  const [showSkins, setShowSkins] = useState<boolean>(false);
+  const [showMaps, setShowMaps] = useState<boolean>(false);
+
+  const titleScale = useRef(new Animated.Value(0)).current;
+  const blobScale = useRef(new Animated.Value(0)).current;
+  const buttonsY = useRef(new Animated.Value(60)).current;
   const buttonsOpacity = useRef(new Animated.Value(0)).current;
-  const coinPulse = useRef(new Animated.Value(1)).current;
+  const playBounce = useRef(new Animated.Value(1)).current;
+  const statsOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.sequence([
-      Animated.spring(headerScale, { toValue: 1, friction: 5, tension: 60, useNativeDriver: true }),
-      Animated.parallel([
-        Animated.spring(balanceY, { toValue: 0, friction: 6, tension: 50, useNativeDriver: true }),
-        Animated.timing(balanceOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-      ]),
+      Animated.spring(titleScale, { toValue: 1, friction: 5, tension: 60, useNativeDriver: true }),
+      Animated.spring(blobScale, { toValue: 1, friction: 4, tension: 50, useNativeDriver: true }),
       Animated.parallel([
         Animated.spring(buttonsY, { toValue: 0, friction: 6, tension: 50, useNativeDriver: true }),
         Animated.timing(buttonsOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(statsOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
       ]),
     ]).start();
 
-    const pulse = Animated.loop(
+    const bounceLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(coinPulse, { toValue: 1.08, duration: 1200, useNativeDriver: true }),
-        Animated.timing(coinPulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(playBounce, { toValue: 1.04, duration: 1000, useNativeDriver: true }),
+        Animated.timing(playBounce, { toValue: 1, duration: 1000, useNativeDriver: true }),
       ])
     );
-    pulse.start();
-    return () => pulse.stop();
-  }, [headerScale, balanceY, balanceOpacity, buttonsY, buttonsOpacity, coinPulse]);
+    bounceLoop.start();
 
-  const buyMutation = useMutation({
-    mutationFn: purchaseCredits,
-    onSuccess: (result) => {
-      if (result.success) {
-        addCoins(result.credits);
-        if (Platform.OS !== 'web') {
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-        Alert.alert('Purchase Complete!', `You received ${result.credits} coins!`);
-        console.log('[Purchases] Credits purchased successfully:', result.credits);
-      }
-    },
-    onError: (error) => {
-      console.error('[Purchases] Purchase failed:', error);
-      Alert.alert('Purchase Failed', 'Something went wrong. Please try again.');
-    },
-  });
+    return () => {
+      bounceLoop.stop();
+    };
+  }, [titleScale, blobScale, buttonsY, buttonsOpacity, statsOpacity, playBounce]);
 
-  const restoreMutation = useMutation({
-    mutationFn: restorePurchases,
-    onSuccess: (result) => {
-      if (result) {
-        Alert.alert('Restore Complete', 'Your purchases have been restored.');
-      } else {
-        Alert.alert('Nothing to Restore', 'No previous purchases found.');
-      }
-    },
-    onError: () => {
-      Alert.alert('Restore Failed', 'Could not restore purchases. Please try again.');
-    },
-  });
-
-  const handleBuy = useCallback(() => {
-    if (!canPurchase) {
-      Alert.alert('Purchases Unavailable', 'In-app purchases are not available on this platform.');
-      return;
-    }
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    buyMutation.mutate();
-  }, [buyMutation, canPurchase]);
-
-  const handleRestore = useCallback(() => {
-    if (!canPurchase) {
-      Alert.alert('Purchases Unavailable', 'In-app purchases are not available on this platform.');
-      return;
-    }
+  const handlePlay = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    restoreMutation.mutate();
-  }, [restoreMutation, canPurchase]);
+    router.push('/game');
+  }, [router]);
+
+  const handleSelectSkin = useCallback((skinId: string) => {
+    const skinDef = getSkinById(skinId);
+    if (stats.unlockedSkins.includes(skinId)) {
+      selectSkin(skinId);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else {
+      if (stats.coins >= skinDef.price) {
+        Alert.alert(
+          `Unlock ${skinDef.name}?`,
+          `This will cost ${skinDef.price} coins.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Unlock',
+              onPress: () => {
+                const spent = spendCoins(skinDef.price);
+                if (spent) {
+                  unlockSkin(skinId);
+                  selectSkin(skinId);
+                  void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Not Enough Coins', `You need ${skinDef.price - stats.coins} more coins.`);
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
+    }
+  }, [stats, selectSkin, unlockSkin, spendCoins]);
+
+  const handleSelectMap = useCallback((mapId: string) => {
+    selectMap(mapId);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [selectMap]);
 
   const safeTop = Math.max(insets.top, 20);
   const safeBottom = Math.max(insets.bottom, 16);
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <View style={styles.bgTop} />
-      <View style={styles.bgBottom} />
-      <View style={styles.bgAccent} />
+    <View style={[styles.container, { backgroundColor: currentMap.skyTop }]}>
+      <StatusBar barStyle="dark-content" />
+      <View style={[styles.skyGradient, { backgroundColor: currentMap.skyBottom }]} />
 
-      <View style={[styles.inner, { paddingTop: safeTop + verticalScale(24), paddingBottom: safeBottom }]}>
-        <Animated.View style={[styles.headerSection, { transform: [{ scale: headerScale }] }]}>
-          <View style={styles.iconCircle}>
-            <CreditCard size={moderateScale(32)} color="#FFFFFF" />
+      <View style={[styles.groundStrip, { backgroundColor: currentMap.groundTop }]} />
+      <View style={[styles.groundBase, { backgroundColor: currentMap.ground }]} />
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: safeTop + verticalScale(16), paddingBottom: safeBottom + verticalScale(20) }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.topBar}>
+          <View style={styles.coinPill}>
+            <Coins size={moderateScale(15)} color="#D4920B" />
+            <Text style={styles.coinText}>{stats.coins}</Text>
           </View>
-          <Text style={styles.title}>Store</Text>
-          <Text style={styles.subtitle}>Purchase coins for your account</Text>
+          <View style={styles.highScorePill}>
+            <Trophy size={moderateScale(13)} color="#B8860B" />
+            <Text style={styles.highScoreText}>{stats.highScore}</Text>
+          </View>
+        </View>
+
+        <Animated.View style={[styles.titleSection, { transform: [{ scale: titleScale }] }]}>
+          <Text style={styles.title}>Gap Dash</Text>
+          <Text style={styles.subtitle}>Tap to fly through the gaps!</Text>
         </Animated.View>
 
-        <Animated.View style={[styles.balanceCard, { opacity: balanceOpacity, transform: [{ translateY: balanceY }] }]}>
-          <View style={styles.balanceRow}>
-            <Animated.View style={[styles.coinIconWrap, { transform: [{ scale: coinPulse }] }]}>
-              <Coins size={moderateScale(28)} color="#D4920B" />
-            </Animated.View>
-            <View style={styles.balanceTextWrap}>
-              <Text style={styles.balanceAmount}>{stats.coins}</Text>
-              <Text style={styles.balanceLabel}>coins available</Text>
+        <Animated.View style={[styles.blobSection, { transform: [{ scale: blobScale }] }]}>
+          <View style={styles.blobShadow} />
+          <BlobCharacter skin={skin} size={scale(110)} />
+          <Text style={styles.skinName}>{skin.name}</Text>
+        </Animated.View>
+
+        <Animated.View style={[styles.statsRow, { opacity: statsOpacity }]}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{stats.totalRuns}</Text>
+            <Text style={styles.statLabel}>Runs</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{stats.highScore}</Text>
+            <Text style={styles.statLabel}>Best</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{stats.coins}</Text>
+            <Text style={styles.statLabel}>Coins</Text>
+          </View>
+        </Animated.View>
+
+        <Animated.View style={[styles.buttonsSection, { opacity: buttonsOpacity, transform: [{ translateY: buttonsY }] }]}>
+          <Animated.View style={{ transform: [{ scale: playBounce }] }}>
+            <TouchableOpacity style={styles.playButton} onPress={handlePlay} activeOpacity={0.8} testID="play-button">
+              <View style={styles.playButtonHighlight} />
+              <Play size={moderateScale(26)} color="#FFF" fill="#FFF" />
+              <Text style={styles.playButtonText}>Play</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <View style={styles.secondaryButtons}>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => { setShowSkins(!showSkins); setShowMaps(false); }}
+              activeOpacity={0.7}
+            >
+              <ShoppingBag size={moderateScale(18)} color={GameColors.uiDark} />
+              <Text style={styles.secondaryBtnText}>Skins</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => { setShowMaps(!showMaps); setShowSkins(false); }}
+              activeOpacity={0.7}
+            >
+              <Map size={moderateScale(18)} color={GameColors.uiDark} />
+              <Text style={styles.secondaryBtnText}>Maps</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+
+        {showSkins && (
+          <View style={styles.selectorSection}>
+            <Text style={styles.selectorTitle}>Choose Your Character</Text>
+            <View style={styles.skinGrid}>
+              {SKINS.map((s) => {
+                const isUnlocked = stats.unlockedSkins.includes(s.id);
+                const isSelected = stats.selectedSkin === s.id;
+                return (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={[
+                      styles.skinCard,
+                      isSelected && styles.skinCardSelected,
+                      !isUnlocked && styles.skinCardLocked,
+                    ]}
+                    onPress={() => handleSelectSkin(s.id)}
+                    activeOpacity={0.7}
+                  >
+                    {isSelected && (
+                      <View style={styles.skinCheckBadge}>
+                        <Check size={moderateScale(10)} color="#FFF" strokeWidth={3} />
+                      </View>
+                    )}
+                    <View style={[styles.skinPreviewCircle, { backgroundColor: s.bodyColor + '30' }]}>
+                      <BlobCharacter skin={s} size={scale(42)} />
+                    </View>
+                    <Text style={styles.skinCardName} numberOfLines={1}>{s.name}</Text>
+                    {!isUnlocked && (
+                      <View style={styles.skinPriceRow}>
+                        <Lock size={moderateScale(9)} color="#B8860B" />
+                        <Text style={styles.skinPriceText}>{s.price}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
-          <View style={styles.balanceDivider} />
-          <View style={styles.balanceFooter}>
-            <ShieldCheck size={moderateScale(14)} color="#6BBF36" />
-            <Text style={styles.balanceFooterText}>Secured by RevenueCat</Text>
-          </View>
-        </Animated.View>
+        )}
 
-        <Animated.View style={[styles.actionsSection, { opacity: buttonsOpacity, transform: [{ translateY: buttonsY }] }]}>
-          <TouchableOpacity
-            style={[styles.buyButton, !canPurchase && styles.buyButtonDisabled]}
-            onPress={handleBuy}
-            activeOpacity={0.8}
-            disabled={buyMutation.isPending}
-            testID="buy-credits-button"
-          >
-            <View style={styles.buyButtonHighlight} />
-            {buyMutation.isPending ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <>
-                <Plus size={moderateScale(22)} color="#FFF" strokeWidth={3} />
-                <View style={styles.buyTextWrap}>
-                  <Text style={styles.buyButtonTitle}>Buy {CREDITS_PER_PURCHASE} Coins</Text>
-                  <Text style={styles.buyButtonPrice}>$0.99</Text>
-                </View>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.restoreButton, !canPurchase && styles.restoreButtonDisabled]}
-            onPress={handleRestore}
-            activeOpacity={0.7}
-            disabled={restoreMutation.isPending}
-            testID="restore-purchases-button"
-          >
-            {restoreMutation.isPending ? (
-              <ActivityIndicator size="small" color="#8A8A9E" />
-            ) : (
-              <>
-                <RotateCcw size={moderateScale(16)} color="#8A8A9E" />
-                <Text style={styles.restoreText}>Restore Purchases</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
-
-        {!canPurchase && (
-          <View style={styles.unavailableBanner}>
-            <Text style={styles.unavailableText}>
-              In-app purchases are only available on iOS and Android devices.
-            </Text>
+        {showMaps && (
+          <View style={styles.selectorSection}>
+            <Text style={styles.selectorTitle}>Choose Your Map</Text>
+            <View style={styles.mapGrid}>
+              {MAPS.map((m) => {
+                const isSelected = stats.selectedMap === m.id;
+                return (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[styles.mapCard, isSelected && styles.mapCardSelected]}
+                    onPress={() => handleSelectMap(m.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.mapPreview, { backgroundColor: m.skyTop }]}>
+                      <View style={[styles.mapPreviewGround, { backgroundColor: m.groundTop }]} />
+                    </View>
+                    <View style={styles.mapInfo}>
+                      <Text style={styles.mapEmoji}>{m.emoji}</Text>
+                      <Text style={styles.mapName}>{m.name}</Text>
+                    </View>
+                    {isSelected && (
+                      <View style={styles.mapCheckBadge}>
+                        <Check size={moderateScale(10)} color="#FFF" strokeWidth={3} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -194,136 +266,171 @@ export default function PurchaseScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F1123',
   },
-  bgTop: {
+  skyGradient: {
     position: 'absolute',
-    top: 0,
+    top: '40%',
     left: 0,
     right: 0,
-    height: '45%',
-    backgroundColor: '#161836',
+    bottom: 0,
   },
-  bgBottom: {
+  groundStrip: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: '55%',
-    backgroundColor: '#0F1123',
+    height: verticalScale(60),
+    zIndex: 1,
   },
-  bgAccent: {
+  groundBase: {
     position: 'absolute',
-    top: '20%',
-    left: -50,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255,216,74,0.04)',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: verticalScale(40),
+    zIndex: 2,
   },
-  inner: {
+  scrollView: {
     flex: 1,
-    paddingHorizontal: scale(24),
-    alignItems: 'center',
+    zIndex: 10,
   },
-  headerSection: {
+  scrollContent: {
     alignItems: 'center',
-    marginBottom: verticalScale(32),
+    paddingHorizontal: scale(20),
   },
-  iconCircle: {
-    width: scale(72),
-    height: scale(72),
-    borderRadius: scale(36),
-    backgroundColor: 'rgba(255,216,74,0.15)',
-    borderWidth: 2,
-    borderColor: 'rgba(255,216,74,0.3)',
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: verticalScale(12),
+  },
+  coinPill: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: verticalScale(16),
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(7),
+    borderRadius: scale(20),
+    gap: scale(6),
+    borderWidth: scale(2),
+    borderColor: 'rgba(255,216,74,0.5)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  coinText: {
+    fontSize: moderateScale(15),
+    fontWeight: '900' as const,
+    color: '#D4920B',
+  },
+  highScorePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(7),
+    borderRadius: scale(20),
+    gap: scale(6),
+    borderWidth: scale(2),
+    borderColor: 'rgba(184,134,11,0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  highScoreText: {
+    fontSize: moderateScale(15),
+    fontWeight: '900' as const,
+    color: '#B8860B',
+  },
+  titleSection: {
+    alignItems: 'center',
+    marginBottom: verticalScale(20),
   },
   title: {
-    fontSize: moderateScale(32),
-    fontWeight: '800' as const,
+    fontSize: moderateScale(42),
+    fontWeight: '900' as const,
     color: '#FFFFFF',
-    letterSpacing: -0.5,
-    marginBottom: verticalScale(6),
+    letterSpacing: -1.5,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 6,
   },
   subtitle: {
     fontSize: moderateScale(15),
-    fontWeight: '500' as const,
-    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '600' as const,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: verticalScale(4),
+    textShadowColor: 'rgba(0,0,0,0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
-  balanceCard: {
-    width: '100%',
-    backgroundColor: '#1C1E3A',
-    borderRadius: scale(24),
-    padding: scale(20),
-    borderWidth: 1,
-    borderColor: 'rgba(255,216,74,0.12)',
-    marginBottom: verticalScale(28),
+  blobSection: {
+    alignItems: 'center',
+    marginBottom: verticalScale(20),
+  },
+  blobShadow: {
+    position: 'absolute',
+    bottom: verticalScale(8),
+    width: scale(60),
+    height: scale(12),
+    borderRadius: scale(6),
+    backgroundColor: 'rgba(0,0,0,0.12)',
+  },
+  skinName: {
+    fontSize: moderateScale(14),
+    fontWeight: '700' as const,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: verticalScale(8),
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: scale(10),
+    marginBottom: verticalScale(24),
+  },
+  statCard: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    paddingHorizontal: scale(18),
+    paddingVertical: verticalScale(10),
+    borderRadius: scale(16),
+    alignItems: 'center',
+    minWidth: scale(80),
+    borderWidth: 1.5,
+    borderColor: 'rgba(26,26,46,0.08)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  balanceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale(16),
-  },
-  coinIconWrap: {
-    width: scale(56),
-    height: scale(56),
-    borderRadius: scale(28),
-    backgroundColor: 'rgba(255,216,74,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  balanceTextWrap: {
-    flex: 1,
-  },
-  balanceAmount: {
-    fontSize: moderateScale(36),
+  statValue: {
+    fontSize: moderateScale(20),
     fontWeight: '900' as const,
-    color: '#FFD84A',
-    letterSpacing: -1,
+    color: GameColors.uiDark,
+    letterSpacing: -0.5,
   },
-  balanceLabel: {
-    fontSize: moderateScale(13),
+  statLabel: {
+    fontSize: moderateScale(11),
     fontWeight: '600' as const,
-    color: 'rgba(255,255,255,0.4)',
-    marginTop: 2,
+    color: 'rgba(26,26,46,0.45)',
+    marginTop: verticalScale(2),
   },
-  balanceDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    marginVertical: verticalScale(14),
-  },
-  balanceFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale(8),
-  },
-  balanceFooterText: {
-    fontSize: moderateScale(12),
-    fontWeight: '600' as const,
-    color: 'rgba(255,255,255,0.35)',
-  },
-  actionsSection: {
+  buttonsSection: {
     width: '100%',
+    alignItems: 'center',
     gap: verticalScale(14),
-    alignItems: 'center',
   },
-  buyButton: {
-    width: '100%',
+  playButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#2A8A4A',
     paddingVertical: verticalScale(18),
-    paddingHorizontal: scale(24),
-    borderRadius: scale(20),
+    paddingHorizontal: scale(60),
+    borderRadius: scale(24),
     gap: scale(12),
     overflow: 'hidden',
     shadowColor: '#1A6A30',
@@ -332,70 +439,181 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 10,
   },
-  buyButtonDisabled: {
-    backgroundColor: '#2A2C4A',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  buyButtonHighlight: {
+  playButtonHighlight: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     height: '50%',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderTopLeftRadius: scale(20),
-    borderTopRightRadius: scale(20),
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderTopLeftRadius: scale(24),
+    borderTopRightRadius: scale(24),
   },
-  buyTextWrap: {
-    alignItems: 'flex-start',
-  },
-  buyButtonTitle: {
-    fontSize: moderateScale(18),
-    fontWeight: '800' as const,
+  playButtonText: {
+    fontSize: moderateScale(22),
+    fontWeight: '900' as const,
     color: '#FFFFFF',
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
   },
-  buyButtonPrice: {
-    fontSize: moderateScale(13),
-    fontWeight: '600' as const,
-    color: 'rgba(255,255,255,0.65)',
-    marginTop: 2,
+  secondaryButtons: {
+    flexDirection: 'row',
+    gap: scale(12),
   },
-  restoreButton: {
+  secondaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(14),
-    paddingHorizontal: scale(24),
-    borderRadius: scale(16),
-    gap: scale(8),
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  restoreButtonDisabled: {
-    opacity: 0.4,
-  },
-  restoreText: {
-    fontSize: moderateScale(14),
-    fontWeight: '600' as const,
-    color: '#8A8A9E',
-  },
-  unavailableBanner: {
-    marginTop: verticalScale(24),
-    backgroundColor: 'rgba(255,160,60,0.1)',
-    borderRadius: scale(14),
+    backgroundColor: 'rgba(255,255,255,0.9)',
     paddingVertical: verticalScale(12),
-    paddingHorizontal: scale(16),
-    borderWidth: 1,
-    borderColor: 'rgba(255,160,60,0.15)',
+    paddingHorizontal: scale(22),
+    borderRadius: scale(18),
+    gap: scale(8),
+    borderWidth: 1.5,
+    borderColor: 'rgba(26,26,46,0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  unavailableText: {
-    fontSize: moderateScale(13),
-    fontWeight: '500' as const,
-    color: 'rgba(255,180,80,0.7)',
-    textAlign: 'center' as const,
-    lineHeight: moderateScale(18),
+  secondaryBtnText: {
+    fontSize: moderateScale(14),
+    fontWeight: '700' as const,
+    color: GameColors.uiDark,
+  },
+  selectorSection: {
+    width: '100%',
+    marginTop: verticalScale(20),
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: scale(22),
+    padding: scale(16),
+    borderWidth: 1.5,
+    borderColor: 'rgba(26,26,46,0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  selectorTitle: {
+    fontSize: moderateScale(17),
+    fontWeight: '800' as const,
+    color: GameColors.uiDark,
+    marginBottom: verticalScale(14),
+    textAlign: 'center',
+  },
+  skinGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: scale(10),
+  },
+  skinCard: {
+    width: scale(76),
+    alignItems: 'center',
+    paddingVertical: verticalScale(10),
+    paddingHorizontal: scale(6),
+    borderRadius: scale(16),
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  skinCardSelected: {
+    borderColor: '#2A8A4A',
+    backgroundColor: 'rgba(42,138,74,0.08)',
+  },
+  skinCardLocked: {
+    opacity: 0.65,
+  },
+  skinCheckBadge: {
+    position: 'absolute',
+    top: scale(4),
+    right: scale(4),
+    width: scale(18),
+    height: scale(18),
+    borderRadius: scale(9),
+    backgroundColor: '#2A8A4A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  skinPreviewCircle: {
+    width: scale(50),
+    height: scale(50),
+    borderRadius: scale(25),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: verticalScale(4),
+  },
+  skinCardName: {
+    fontSize: moderateScale(10),
+    fontWeight: '700' as const,
+    color: GameColors.uiDark,
+    textAlign: 'center',
+  },
+  skinPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(3),
+    marginTop: verticalScale(2),
+  },
+  skinPriceText: {
+    fontSize: moderateScale(9),
+    fontWeight: '800' as const,
+    color: '#B8860B',
+  },
+  mapGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: scale(10),
+  },
+  mapCard: {
+    width: scale(150),
+    borderRadius: scale(14),
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: 'rgba(0,0,0,0.03)',
+  },
+  mapCardSelected: {
+    borderColor: '#2A8A4A',
+  },
+  mapPreview: {
+    height: verticalScale(50),
+    position: 'relative',
+  },
+  mapPreviewGround: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '30%',
+  },
+  mapInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: scale(8),
+    gap: scale(6),
+  },
+  mapEmoji: {
+    fontSize: moderateScale(16),
+  },
+  mapName: {
+    fontSize: moderateScale(12),
+    fontWeight: '700' as const,
+    color: GameColors.uiDark,
+  },
+  mapCheckBadge: {
+    position: 'absolute',
+    top: scale(6),
+    right: scale(6),
+    width: scale(18),
+    height: scale(18),
+    borderRadius: scale(9),
+    backgroundColor: '#2A8A4A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
   },
 });
