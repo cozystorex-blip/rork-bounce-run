@@ -175,7 +175,7 @@ export default React.memo(function SkinSelector() {
 
   const handleBuyCredits = useCallback(() => {
     if (!canPurchase) {
-      Alert.alert('Purchases Unavailable', 'In-app purchases are only available on iOS and Android devices.');
+      Alert.alert('Purchases Unavailable', 'In-app purchases are not available right now. Please check your configuration.');
       return;
     }
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

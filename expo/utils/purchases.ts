@@ -6,19 +6,17 @@ const OFFERING_ID = 'credits_store';
 const PACKAGE_ID = 'credits_100';
 
 function getRCApiKey(): string {
-  if (Platform.OS === 'web') {
-    console.log('[Purchases] Web platform - purchases not supported');
-    return '';
+  if (__DEV__ || Platform.OS === 'web') {
+    return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? '';
   }
   return Platform.select({
     ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? '',
     android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ?? '',
-    default: '',
+    default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? '',
   }) as string;
 }
 
 export function isPurchaseAvailable(): boolean {
-  if (Platform.OS === 'web') return false;
   const apiKey = getRCApiKey();
   return apiKey.length > 0;
 }
@@ -27,10 +25,6 @@ let isConfigured = false;
 
 export function configureRevenueCat() {
   if (isConfigured) return;
-  if (Platform.OS === 'web') {
-    console.log('[Purchases] Skipping RevenueCat on web');
-    return;
-  }
   const apiKey = getRCApiKey();
   if (!apiKey) {
     console.warn('[Purchases] No RevenueCat API key found. Platform:', Platform.OS, '__DEV__:', __DEV__);
