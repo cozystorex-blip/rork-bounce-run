@@ -1,15 +1,19 @@
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Purchases, { LOG_LEVEL, PurchasesPackage } from 'react-native-purchases';
 import { COIN_PACKS, getCoinsForProduct } from '@/constants/coinPacks';
 
+const PROCESSED_TX_KEY = 'blobdash_processed_transactions';
+const OFFERING_ID = 'credits_store';
+
 function getRCApiKey(): string {
-  if (Platform.OS === 'web') {
-    return '';
+  if (__DEV__ || Platform.OS === 'web') {
+    return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? '';
   }
   return Platform.select({
     ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? '',
     android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ?? '',
-    default: '',
+    default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? '',
   }) as string;
 }
 
@@ -55,6 +59,31 @@ export interface CoinPackOffering {
   rcPackage: PurchasesPackage | null;
 }
 
+async function loadProcessedTransactions(): Promise<Set<string>> {
+  try {
+    const stored = await AsyncStorage.getItem(PROCESSED_TX_KEY);
+    if (stored) {
+      const arr = JSON.parse(stored) as string[];
+      return new Set(arr);
+    }
+  } catch (e) {
+    console.error('[Purchases] Failed to load processed transactions:', e);
+  }
+  return new Set();
+}
+
+async function saveProcessedTransaction(txId: string): Promise<void> {
+  try {
+    const existing = await loadProcessedTransactions();
+    existing.add(txId);
+    const arr = Array.from(existing);
+    const trimmed = arr.length > 500 ? arr.slice(arr.length - 500) : arr;
+    await AsyncStorage.setItem(PROCESSED_TX_KEY, JSON.stringify(trimmed));
+  } catch (e) {
+    console.error('[Purchases] Failed to save processed transaction:', e);
+  }
+}
+
 export async function fetchCoinPackOfferings(): Promise<CoinPackOffering[]> {
   const result: CoinPackOffering[] = COIN_PACKS.map(pack => ({
     packId: pack.id,
@@ -74,21 +103,31 @@ export async function fetchCoinPackOfferings(): Promise<CoinPackOffering[]> {
     const offerings = await Purchases.getOfferings();
     console.log('[Purchases] Offerings fetched. Current:', offerings.current?.identifier, 'All keys:', Object.keys(offerings.all));
 
-    const offering = offerings.current ?? offerings.all['coin_store'];
+    const offering = offerings.current ?? offerings.all[OFFERING_ID];
     if (!offering) {
-      console.warn('[Purchases] No coin_store offering found. Available:', Object.keys(offerings.all));
+      console.warn('[Purchases] No offering found. Looked for current or "' + OFFERING_ID + '". Available:', Object.keys(offerings.all));
       return result;
     }
 
+    console.log('[Purchases] Using offering:', offering.identifier, 'Packages:', offering.availablePackages.length);
+
     for (const rcPkg of offering.availablePackages) {
       const productId = rcPkg.product.identifier;
-      const matchIdx = result.findIndex(r => r.packId === productId || COIN_PACKS.find(p => p.id === r.packId)?.revenueCatProductId === productId);
+      const matchIdx = result.findIndex(r => {
+        const pack = COIN_PACKS.find(p => p.id === r.packId);
+        return pack?.revenueCatProductId === productId;
+      });
       if (matchIdx >= 0) {
         result[matchIdx].rcPackage = rcPkg;
         result[matchIdx].priceLabel = rcPkg.product.priceString ?? result[matchIdx].priceLabel;
-        console.log('[Purchases] Matched package:', productId, '→', result[matchIdx].packId);
+        console.log('[Purchases] Matched package:', productId, '→', result[matchIdx].packId, 'price:', result[matchIdx].priceLabel);
+      } else {
+        console.warn('[Purchases] Unmatched RC package product:', productId);
       }
     }
+
+    const matched = result.filter(r => r.rcPackage !== null).length;
+    console.log('[Purchases] Matched', matched, '/', result.length, 'coin packs to RC packages');
   } catch (e) {
     console.error('[Purchases] Error fetching offerings:', e);
   }
@@ -103,8 +142,6 @@ export interface PurchaseResult {
   transactionId?: string;
 }
 
-const processedTransactions = new Set<string>();
-
 export async function purchaseCoinPack(offering: CoinPackOffering): Promise<PurchaseResult> {
   if (!isConfigured) {
     console.warn('[Purchases] Not configured, cannot purchase');
@@ -118,70 +155,46 @@ export async function purchaseCoinPack(offering: CoinPackOffering): Promise<Purc
 
   try {
     console.log('[Purchases] Purchasing package:', offering.rcPackage.identifier, 'Product:', offering.rcPackage.product.identifier);
-    const result = await Purchases.purchasePackage(offering.rcPackage);
+    const purchaseResult = await Purchases.purchasePackage(offering.rcPackage);
 
-    const txId = result.customerInfo.originalAppUserId + '_' + Date.now().toString();
-    if (processedTransactions.has(txId)) {
+    const allTxIds = purchaseResult.customerInfo.nonSubscriptionTransactions;
+    const productId = offering.rcPackage.product.identifier;
+
+    let txId = '';
+    if (allTxIds && allTxIds.length > 0) {
+      const relevantTx = allTxIds
+        .filter(tx => tx.productIdentifier === productId)
+        .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime());
+      if (relevantTx.length > 0) {
+        txId = relevantTx[0].transactionIdentifier;
+      }
+    }
+
+    if (!txId) {
+      txId = purchaseResult.customerInfo.originalAppUserId + '_' + productId + '_' + Date.now().toString();
+      console.log('[Purchases] No transaction ID found in response, using fallback:', txId);
+    }
+
+    const processedTxs = await loadProcessedTransactions();
+    if (processedTxs.has(txId)) {
       console.warn('[Purchases] Duplicate transaction detected:', txId);
       return { success: false, coins: 0 };
     }
-    processedTransactions.add(txId);
 
-    const productId = offering.rcPackage.product.identifier;
+    await saveProcessedTransaction(txId);
+
     const coins = getCoinsForProduct(productId) || offering.coins;
-
-    console.log('[Purchases] Purchase success. Coins:', coins, 'Product:', productId);
+    console.log('[Purchases] Purchase success. Coins:', coins, 'Product:', productId, 'TxId:', txId);
     return { success: true, coins, productId, transactionId: txId };
   } catch (e: any) {
     if (e?.userCancelled) {
       console.log('[Purchases] User cancelled purchase');
-    } else if (e?.code === '1' || e?.message?.includes('cancelled')) {
-      console.log('[Purchases] User cancelled purchase (iOS)');
-    } else if (e?.code === '6' || e?.message?.includes('receipt')) {
-      console.error('[Purchases] Receipt validation error:', e?.message);
+    } else if (e?.code === 1 || e?.code === '1') {
+      console.log('[Purchases] User cancelled purchase (code 1)');
     } else {
       console.error('[Purchases] Purchase error:', JSON.stringify(e, null, 2));
     }
     return { success: false, coins: 0 };
-  }
-}
-
-export const CREDITS_PER_PURCHASE = 500;
-
-export async function purchaseCredits(): Promise<{ success: boolean; credits: number }> {
-  if (!isConfigured) {
-    console.warn('[Purchases] Not configured, cannot purchase credits');
-    return { success: false, credits: 0 };
-  }
-
-  try {
-    const offerings = await Purchases.getOfferings();
-    const offering = offerings.current ?? offerings.all['coin_store'];
-    if (!offering || offering.availablePackages.length === 0) {
-      console.warn('[Purchases] No offerings available for credit purchase');
-      return { success: false, credits: 0 };
-    }
-
-    const pkg = offering.availablePackages[0];
-    console.log('[Purchases] Purchasing credits package:', pkg.identifier);
-    const result = await Purchases.purchasePackage(pkg);
-
-    const txId = result.customerInfo.originalAppUserId + '_credits_' + Date.now().toString();
-    if (processedTransactions.has(txId)) {
-      console.warn('[Purchases] Duplicate credit transaction:', txId);
-      return { success: false, credits: 0 };
-    }
-    processedTransactions.add(txId);
-
-    console.log('[Purchases] Credits purchase success:', CREDITS_PER_PURCHASE);
-    return { success: true, credits: CREDITS_PER_PURCHASE };
-  } catch (e: any) {
-    if (e?.userCancelled || e?.code === '1' || e?.message?.includes('cancelled')) {
-      console.log('[Purchases] User cancelled credit purchase');
-    } else {
-      console.error('[Purchases] Credit purchase error:', e);
-    }
-    return { success: false, credits: 0 };
   }
 }
 
@@ -193,9 +206,18 @@ export async function restorePurchases(): Promise<{ success: boolean; message: s
   try {
     const customerInfo = await Purchases.restorePurchases();
     console.log('[Purchases] Restored purchases. Active entitlements:', JSON.stringify(customerInfo.entitlements.active));
+    console.log('[Purchases] Non-subscription transactions:', customerInfo.nonSubscriptionTransactions?.length ?? 0);
+
     const activeCount = Object.keys(customerInfo.entitlements.active).length;
-    if (activeCount > 0) {
-      return { success: true, message: `Restored ${activeCount} purchase(s).` };
+    const txCount = customerInfo.nonSubscriptionTransactions?.length ?? 0;
+
+    if (activeCount > 0 || txCount > 0) {
+      return {
+        success: true,
+        message: activeCount > 0
+          ? `Restored ${activeCount} active entitlement(s).`
+          : `Found ${txCount} previous transaction(s). Consumable coin purchases cannot be re-granted after use.`,
+      };
     }
     return { success: true, message: 'No previous purchases found.' };
   } catch (e) {

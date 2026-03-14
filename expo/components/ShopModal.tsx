@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Animated,
   ScrollView,
-  Platform,
   Alert,
 } from 'react-native';
 import { X, Coins, ShoppingBag, RotateCcw, Sparkles, Check } from 'lucide-react-native';
@@ -80,21 +79,7 @@ export default function ShopModal({ visible, onClose }: ShopModalProps) {
     setPurchasingId(offering.packId);
 
     if (!purchaseAvailable || !offering.rcPackage) {
-      if (Platform.OS === 'web') {
-        addCoins(offering.coins);
-        setSuccessId(offering.packId);
-        Animated.sequence([
-          Animated.timing(coinBounce, { toValue: 1.3, duration: 150, useNativeDriver: true }),
-          Animated.spring(coinBounce, { toValue: 1, friction: 3, tension: 120, useNativeDriver: true }),
-        ]).start();
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setTimeout(() => setSuccessId(null), 1500);
-        setPurchasingId(null);
-        console.log('[Shop] Web demo purchase:', offering.coins, 'coins');
-        return;
-      }
-
-      Alert.alert('Not Available', 'In-app purchases are not configured yet. Please check back later.');
+      Alert.alert('Not Available', 'This purchase is not available right now. Please try again later.');
       setPurchasingId(null);
       return;
     }
