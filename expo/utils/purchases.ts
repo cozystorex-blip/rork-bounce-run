@@ -6,13 +6,13 @@ const OFFERING_ID = 'credits_store';
 const PACKAGE_ID = 'credits_100';
 
 function getRCApiKey(): string {
-  if (__DEV__ || Platform.OS === 'web') {
-    return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? '';
+  if (Platform.OS === 'web') {
+    return '';
   }
   return Platform.select({
     ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? '',
     android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ?? '',
-    default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? '',
+    default: '',
   }) as string;
 }
 
