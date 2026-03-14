@@ -192,6 +192,26 @@ export const [GameStateProvider, useGameState] = createContextHook(() => {
     console.log(`[GameState] Added ${amount} coins. New balance: ${updated.coins}`);
   }, [stats, saveMutation]);
 
+  const spendCoins = useCallback((amount: number): boolean => {
+    if (stats.coins < amount) {
+      console.log(`[GameState] Cannot spend ${amount} coins. Balance: ${stats.coins}`);
+      return false;
+    }
+    const updated = { ...stats, coins: stats.coins - amount };
+    setStats(updated);
+    saveMutation.mutate(updated);
+    console.log(`[GameState] Spent ${amount} coins. New balance: ${updated.coins}`);
+    return true;
+  }, [stats, saveMutation]);
+
+  const canAfford = useCallback((amount: number): boolean => {
+    return stats.coins >= amount;
+  }, [stats.coins]);
+
+  const getBalance = useCallback((): number => {
+    return stats.coins;
+  }, [stats.coins]);
+
   const currentSkin = useMemo(() => {
     return SKINS.find(s => s.id === stats.selectedSkin) ?? SKINS[0];
   }, [stats.selectedSkin]);
@@ -203,13 +223,16 @@ export const [GameStateProvider, useGameState] = createContextHook(() => {
     selectMap,
     purchaseSkin,
     addCoins,
+    spendCoins,
+    canAfford,
+    getBalance,
     currentSkin,
     toggleMusic,
     unlockedBadges: unlockedBadgeObjects,
     badgeCount: stats.unlockedBadges.length,
     totalBadges: BADGES.length,
     isLoading: statsQuery.isLoading,
-  }), [stats, submitRun, selectSkin, selectMap, purchaseSkin, addCoins, currentSkin, toggleMusic, unlockedBadgeObjects, statsQuery.isLoading]);
+  }), [stats, submitRun, selectSkin, selectMap, purchaseSkin, addCoins, spendCoins, canAfford, getBalance, currentSkin, toggleMusic, unlockedBadgeObjects, statsQuery.isLoading]);
 });
 
 export function useFormattedDistance(meters: number): string {

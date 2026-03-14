@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
-import { Trophy, Ruler, Star, Play, ChevronRight, CupSoda, TreePine } from 'lucide-react-native';
+import { Trophy, Ruler, Star, Play, ChevronRight, CupSoda, TreePine, Coins } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GameColors } from '@/constants/colors';
 import { useGameState, useFormattedDistance } from '@/providers/GameStateProvider';
@@ -26,6 +26,7 @@ import GroundWave from '@/components/GroundWave';
 import BlobCharacter from '@/components/BlobCharacter';
 import BlobSkin from '@/components/BlobSkin';
 import SkinSelector from '@/components/SkinSelector';
+import ShopModal from '@/components/ShopModal';
 import { SCREEN, scale, verticalScale, moderateScale, wp } from '@/constants/layout';
 
 const SCREEN_WIDTH = SCREEN.width;
@@ -36,7 +37,9 @@ export default function HomeScreen() {
   const { stats, badgeCount, currentSkin, selectMap } = useGameState();
   const formattedDistance = useFormattedDistance(stats.totalDistance);
   const [currentPage, setCurrentPage] = useState<number>(0);
+  const [shopVisible, setShopVisible] = useState<boolean>(false);
   const scrollRef = useRef<ScrollView>(null);
+  const coinScale = useRef(new Animated.Value(1)).current;
 
   const safeTop = Math.max(insets.top, 20);
   const safeBottom = Math.max(insets.bottom, 10);
@@ -320,24 +323,51 @@ export default function HomeScreen() {
               </Animated.View>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={handleShareScore}
-              activeOpacity={0.8}
-              testID="share-button"
-            >
-              <Animated.View
-                style={[
-                  styles.shareWidget,
-                  {
-                    opacity: pillsOpacity,
-                    transform: [{ scale: shareScale }],
-                  },
-                ]}
+            <View style={styles.topBarRight}>
+              <TouchableOpacity
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  Animated.sequence([
+                    Animated.timing(coinScale, { toValue: 0.9, duration: 60, useNativeDriver: true }),
+                    Animated.spring(coinScale, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
+                  ]).start();
+                  setShopVisible(true);
+                }}
+                activeOpacity={0.8}
+                testID="coin-shop-button"
               >
-                <CupSoda size={moderateScale(16)} color="#2D2D2D" />
-                <Text style={styles.shareWidgetText}>Share</Text>
-              </Animated.View>
-            </TouchableOpacity>
+                <Animated.View
+                  style={[
+                    styles.coinWidget,
+                    {
+                      opacity: pillsOpacity,
+                      transform: [{ scale: coinScale }],
+                    },
+                  ]}
+                >
+                  <Coins size={moderateScale(15)} color="#D4920B" />
+                  <Text style={styles.coinWidgetText}>{stats.coins}</Text>
+                </Animated.View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleShareScore}
+                activeOpacity={0.8}
+                testID="share-button"
+              >
+                <Animated.View
+                  style={[
+                    styles.shareWidget,
+                    {
+                      opacity: pillsOpacity,
+                      transform: [{ scale: shareScale }],
+                    },
+                  ]}
+                >
+                  <CupSoda size={moderateScale(16)} color="#2D2D2D" />
+                  <Text style={styles.shareWidgetText}>Share</Text>
+                </Animated.View>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={[styles.content, { paddingBottom: groundOffset + safeBottom + verticalScale(40) }]}>
@@ -572,6 +602,8 @@ export default function HomeScreen() {
         <Animated.View style={[styles.dot, { backgroundColor: '#FFD84A', transform: [{ scale: dot0Scale }], opacity: dot0Opacity }]} />
         <Animated.View style={[styles.dot, { backgroundColor: '#FFD84A', transform: [{ scale: dot1Scale }], opacity: dot1Opacity }]} />
       </View>
+
+      <ShopModal visible={shopVisible} onClose={() => setShopVisible(false)} />
     </View>
   );
 }
@@ -993,6 +1025,34 @@ const styles = StyleSheet.create({
     fontWeight: '900' as const,
     color: '#1A1A2E',
     letterSpacing: 0.5,
+  },
+  topBarRight: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: scale(6),
+  },
+  coinWidget: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#FFF8E0',
+    paddingHorizontal: scale(10),
+    paddingVertical: verticalScale(7),
+    borderRadius: scale(18),
+    borderWidth: scale(2.5),
+    borderColor: 'rgba(212,146,11,0.5)',
+    gap: scale(4),
+    shadowColor: 'rgba(180,120,0,0.3)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 5,
+    overflow: 'hidden' as const,
+  },
+  coinWidgetText: {
+    fontSize: moderateScale(13),
+    fontWeight: '900' as const,
+    color: '#D4920B',
+    letterSpacing: 0.3,
   },
   mapSelectorWrap: {
     width: '100%',
