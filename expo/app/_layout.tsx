@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
-import { Platform, StatusBar } from "react-native";
 import { GameStateProvider } from "@/providers/GameStateProvider";
 import { configureRevenueCat } from "@/utils/purchases";
 
@@ -30,9 +29,6 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   useEffect(() => {
-    if (Platform.OS === 'ios') {
-      StatusBar.setBarStyle('dark-content');
-    }
     void SplashScreen.hideAsync();
   }, []);
 

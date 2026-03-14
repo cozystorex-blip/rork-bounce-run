@@ -39,8 +39,6 @@ class AudioManager {
           staysActiveInBackground: false,
           shouldDuckAndroid: true,
           allowsRecordingIOS: false,
-          interruptionModeIOS: 1,
-          interruptionModeAndroid: 1,
         });
       }
       this.setupAppStateListener();
@@ -144,8 +142,6 @@ class AudioManager {
           staysActiveInBackground: false,
           shouldDuckAndroid: true,
           allowsRecordingIOS: false,
-          interruptionModeIOS: 1,
-          interruptionModeAndroid: 1,
         });
       }
       await this.musicSound.setPositionAsync(0);

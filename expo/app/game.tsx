@@ -728,6 +728,10 @@ export default function GameScreen() {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
+      if (comboTimer.current) {
+        clearTimeout(comboTimer.current);
+        comboTimer.current = null;
+      }
     };
   }, []);
 

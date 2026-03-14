@@ -63,6 +63,7 @@ export default function HomeScreen() {
   const blobSpinAnim = useRef(new Animated.Value(0)).current;
   const blobSquishAnim = useRef(new Animated.Value(1)).current;
   const [blobTapCount, setBlobTapCount] = useState<number>(0);
+  const blobTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleBlobTap = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -70,7 +71,8 @@ export default function HomeScreen() {
       const next = prev + 1;
       if (next >= 5) {
         selectMap('neon');
-        setTimeout(() => {
+        if (blobTapTimerRef.current) clearTimeout(blobTapTimerRef.current);
+        blobTapTimerRef.current = setTimeout(() => {
           router.push('/game');
         }, 300);
       }
@@ -131,10 +133,6 @@ export default function HomeScreen() {
   }, [stats.bestScore, formattedDistance, shareScale]);
 
   useEffect(() => {
-    const playPopDelayed = (delay: number) => {
-      setTimeout(() => { void audioManager.playPop(); }, delay);
-    };
-
     Animated.sequence([
       Animated.parallel([
         Animated.spring(logoScale, {
@@ -192,10 +190,12 @@ export default function HomeScreen() {
       ]),
     ]).start();
 
-    playPopDelayed(100);
-    playPopDelayed(500);
-    playPopDelayed(900);
-    playPopDelayed(1400);
+    const popTimers = [
+      setTimeout(() => { void audioManager.playPop(); }, 100),
+      setTimeout(() => { void audioManager.playPop(); }, 500),
+      setTimeout(() => { void audioManager.playPop(); }, 900),
+      setTimeout(() => { void audioManager.playPop(); }, 1400),
+    ];
 
     const bounceLoop = Animated.loop(
       Animated.sequence([
@@ -212,7 +212,11 @@ export default function HomeScreen() {
       ])
     );
     bounceLoop.start();
-    return () => bounceLoop.stop();
+    return () => {
+      bounceLoop.stop();
+      popTimers.forEach(t => clearTimeout(t));
+      if (blobTapTimerRef.current) clearTimeout(blobTapTimerRef.current);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -630,14 +634,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  bubblesTapText: {
-    fontSize: moderateScale(8),
-    fontWeight: '800' as const,
-    color: '#1A1A2E',
-    marginTop: verticalScale(3),
-    letterSpacing: 0.3,
-    opacity: 0.6,
-  },
   topBar: {
     position: 'absolute',
     top: 0,
@@ -648,32 +644,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  runsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    paddingHorizontal: scale(16),
-    paddingVertical: verticalScale(8),
-    borderRadius: scale(20),
-    borderWidth: scale(2.5),
-    borderColor: '#1A1A2E',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  runsPillValue: {
-    color: GameColors.uiDark,
-    fontSize: moderateScale(15),
-    fontWeight: '900' as const,
-  },
-  runsPillLabel: {
-    color: GameColors.uiDark,
-    fontSize: moderateScale(13),
-    fontWeight: '600' as const,
-  },
-
   content: {
     flex: 1,
     alignItems: 'center',
@@ -1315,161 +1285,6 @@ const styles = StyleSheet.create({
     fontWeight: '900' as const,
     color: '#FFFFFF',
     marginTop: -1,
-  },
-  secretMapOverlay: {
-    position: 'absolute',
-    left: scale(16),
-    right: scale(16),
-    zIndex: 100,
-    alignItems: 'center',
-  },
-  secretMapCard: {
-    width: scale(220),
-    backgroundColor: '#0A0A1A',
-    borderRadius: scale(18),
-    borderWidth: scale(2.5),
-    borderColor: '#00F0FF',
-    overflow: 'hidden',
-    shadowColor: '#00F0FF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
-    elevation: 20,
-  },
-  secretMapGlowBorder: {
-    position: 'absolute',
-    top: -2,
-    left: -2,
-    right: -2,
-    bottom: -2,
-    borderRadius: scale(20),
-    borderWidth: scale(3),
-    borderColor: '#FF2D95',
-    zIndex: -1,
-  },
-  secretMapBadge: {
-    position: 'absolute',
-    top: scale(8),
-    right: scale(8),
-    zIndex: 10,
-    backgroundColor: '#FF2D95',
-    paddingHorizontal: scale(8),
-    paddingVertical: verticalScale(3),
-    borderRadius: scale(6),
-    borderWidth: 1.5,
-    borderColor: '#00F0FF',
-  },
-  secretMapBadgeText: {
-    fontSize: moderateScale(8),
-    fontWeight: '900' as const,
-    color: '#FFFFFF',
-    letterSpacing: 2,
-  },
-  secretMapPreviewLarge: {
-    width: '100%',
-    height: verticalScale(80),
-    overflow: 'hidden',
-  },
-  secretMapPreviewSkyTop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '50%',
-  },
-  secretMapPreviewGround: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '30%',
-  },
-  secretMapPreviewAccentLine: {
-    position: 'absolute',
-    bottom: '28%',
-    left: 0,
-    right: 0,
-    height: 2,
-  },
-  neonBuilding1: {
-    position: 'absolute',
-    bottom: '28%',
-    left: scale(10),
-    width: scale(18),
-    height: verticalScale(28),
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 2,
-  },
-  neonBuilding2: {
-    position: 'absolute',
-    bottom: '28%',
-    left: scale(34),
-    width: scale(14),
-    height: verticalScale(38),
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 2,
-  },
-  neonBuilding3: {
-    position: 'absolute',
-    bottom: '28%',
-    right: scale(12),
-    width: scale(20),
-    height: verticalScale(24),
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 2,
-  },
-  neonWindow: {
-    position: 'absolute',
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-  },
-  neonGridLine1: {
-    position: 'absolute',
-    bottom: '10%',
-    left: '20%',
-    right: '20%',
-    height: 1,
-    backgroundColor: '#00F0FF',
-    opacity: 0.2,
-  },
-  neonGridLine2: {
-    position: 'absolute',
-    bottom: '18%',
-    left: '10%',
-    right: '10%',
-    height: 1,
-    backgroundColor: '#FF2D95',
-    opacity: 0.15,
-  },
-  secretMapInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: scale(10),
-    gap: scale(8),
-  },
-  secretMapIcon: {
-    fontSize: moderateScale(22),
-  },
-  secretMapName: {
-    fontSize: moderateScale(14),
-    fontWeight: '900' as const,
-    color: '#00F0FF',
-    letterSpacing: 0.5,
-  },
-  secretMapSubtitle: {
-    fontSize: moderateScale(10),
-    fontWeight: '600' as const,
-    color: '#FF2D95',
-    opacity: 0.8,
-  },
-  secretMapHint: {
-    fontSize: moderateScale(9),
-    fontWeight: '700' as const,
-    color: 'rgba(0,240,255,0.4)',
-    textAlign: 'center',
-    paddingBottom: verticalScale(8),
-    letterSpacing: 1.5,
   },
   blobTapHint: {
     position: 'absolute',
