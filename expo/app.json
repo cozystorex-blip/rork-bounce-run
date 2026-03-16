@@ -3,6 +3,9 @@
     "name": "Gap Dash",
     "slug": "kui3neecngk955e59b1og",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "rork-app",
@@ -40,7 +43,15 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#4BA3D4"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
