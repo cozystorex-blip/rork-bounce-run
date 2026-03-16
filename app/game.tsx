@@ -386,9 +386,8 @@ export default function GameScreen() {
     const charTop = centerY - halfHit + forgive;
     const charBottom = centerY + halfHit - forgive;
 
-    const bottomForgiveReduction = forgive * 0.75;
-    const charBottomTight = charBottom + bottomForgiveReduction;
-    const bottomInsetReduction = insetY * 0.6;
+    const charBottomTight = centerY + halfHit - forgive * 0.15;
+    const bottomInsetReduction = insetY * 0.25;
 
     const ceilingY = safeTop;
     const floorY = SCREEN_HEIGHT - GROUND_HEIGHT;
