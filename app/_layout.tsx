@@ -23,6 +23,7 @@ function RootLayoutNav() {
           animationTypeForReplace: 'push',
         }}
       />
+      <Stack.Screen name="+not-found" />
     </Stack>
   );
 }
