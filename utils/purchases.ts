@@ -7,13 +7,13 @@ const PROCESSED_TX_KEY = 'blobdash_processed_transactions';
 const OFFERING_ID = 'credits_store';
 
 function getRCApiKey(): string {
-  if (Platform.OS === 'web') {
-    return '';
+  if (__DEV__ || Platform.OS === 'web') {
+    return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? '';
   }
   return Platform.select({
     ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? '',
     android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ?? '',
-    default: '',
+    default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? '',
   }) as string;
 }
 
