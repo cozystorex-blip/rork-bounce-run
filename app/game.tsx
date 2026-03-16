@@ -380,10 +380,11 @@ export default function GameScreen() {
     const insetY = scale(OBSTACLE_TUNING.HITBOX_INSET_Y);
     const forgive = scale(OBSTACLE_TUNING.PLAYER_FORGIVENESS);
     const halfHit = hitSize / 2;
+    const centerY = cy + GAME_CONFIG.CHARACTER_SIZE / 2;
     const charLeft = cx - halfHit + forgive;
     const charRight = cx + halfHit - forgive;
-    const charTop = cy - halfHit + forgive;
-    const charBottom = cy + halfHit - forgive;
+    const charTop = centerY - halfHit + forgive;
+    const charBottom = centerY + halfHit - forgive;
 
     const ceilingY = safeTop;
     const floorY = SCREEN_HEIGHT - GROUND_HEIGHT;
