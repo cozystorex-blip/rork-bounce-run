@@ -7,13 +7,13 @@ const PROCESSED_TX_KEY = 'blobdash_processed_transactions';
 const OFFERING_ID = 'credits_store';
 
 function getRCApiKey(): string {
-  if (__DEV__ || Platform.OS === 'web') {
-    return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? '';
+  if (Platform.OS === 'web') {
+    return '';
   }
   return Platform.select({
     ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? '',
     android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ?? '',
-    default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY ?? '',
+    default: '',
   }) as string;
 }
 
@@ -32,14 +32,10 @@ export function configureRevenueCat() {
     return;
   }
   try {
-    if (__DEV__) {
-      void Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-    } else {
-      void Purchases.setLogLevel(LOG_LEVEL.INFO);
-    }
+    void Purchases.setLogLevel(LOG_LEVEL.INFO);
     Purchases.configure({ apiKey });
     isConfigured = true;
-    console.log('[Purchases] RevenueCat configured. Platform:', Platform.OS, 'isDev:', __DEV__, 'keyPrefix:', apiKey.substring(0, 8) + '...');
+    console.log('[Purchases] RevenueCat configured. Platform:', Platform.OS, 'keyPrefix:', apiKey.substring(0, 8) + '...');
   } catch (e) {
     console.error('[Purchases] Failed to configure RevenueCat:', e);
     isConfigured = false;
