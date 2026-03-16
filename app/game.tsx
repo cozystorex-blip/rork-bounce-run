@@ -386,12 +386,9 @@ export default function GameScreen() {
     const charTop = centerY - halfHit + forgive;
     const charBottom = centerY + halfHit - forgive;
 
-    const charBottomTight = centerY + halfHit - forgive * 0.15;
-    const bottomInsetReduction = insetY * 0.25;
-
     const ceilingY = safeTop;
     const floorY = SCREEN_HEIGHT - GROUND_HEIGHT;
-    if (charTop <= ceilingY || charBottomTight >= floorY) {
+    if (charTop <= ceilingY || charBottom >= floorY) {
       return true;
     }
 
@@ -408,7 +405,7 @@ export default function GameScreen() {
 
       if (charRight > pipeLeft && charLeft < pipeRight) {
         if (charTop < gapStart + insetY) return true;
-        if (charBottomTight > gapEnd - bottomInsetReduction) return true;
+        if (charBottom > gapEnd - insetY) return true;
       }
     }
     return false;
