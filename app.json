@@ -52,14 +52,7 @@
           "backgroundColor": "#4BA3D4"
         }
       ],
-      [
-        "react-native-purchases",
-        {
-          "ios": {
-            "usesStoreKit2": true
-          }
-        }
-      ]
+      "expo-system-ui"
     ],
     "experiments": {
       "typedRoutes": true
