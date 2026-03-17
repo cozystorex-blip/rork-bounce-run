@@ -582,6 +582,9 @@ export default function GameScreen() {
     }
 
     const vel = velocity.current;
+    const isFalling = vel > 0.6;
+    const fallIntensity = isFalling ? Math.min(1, vel / 6) : 0;
+
     if (isNeonMap) {
       if (Math.abs(xDrift.current) > 0.5) {
         xDrift.current *= 0.88;
@@ -620,10 +623,11 @@ export default function GameScreen() {
     if (vel < -0.5) {
       stretchYVal = Math.min(1.32, 1 + absVel * 0.028);
       stretchXVal = Math.max(0.76, 1 - absVel * 0.018);
-    } else if (vel > 0.8) {
+    } else if (vel > 0.6) {
       const fallT = Math.min(1, absVel / 5);
-      stretchYVal = Math.max(0.88, 1 - fallT * 0.12);
-      stretchXVal = Math.min(1.14, 1 + fallT * 0.14);
+      const downPointT = Math.min(1, absVel / 4);
+      stretchYVal = Math.max(0.85, 1 - fallT * 0.15 - downPointT * 0.04);
+      stretchXVal = Math.min(1.18, 1 + fallT * 0.16 + downPointT * 0.03);
     } else {
       const returnSpeed = 0.15;
       stretchYVal = prevStretchY.current + (1 - prevStretchY.current) * returnSpeed;
@@ -631,13 +635,19 @@ export default function GameScreen() {
     }
 
     if (prevVelSign.current < 0 && vel > 0.3) {
-      const elasticBounce = Math.min(0.06, absVel * 0.012);
+      const elasticBounce = Math.min(0.08, absVel * 0.015);
       stretchXVal += elasticBounce;
-      stretchYVal -= elasticBounce * 0.8;
+      stretchYVal -= elasticBounce * 0.9;
     } else if (prevVelSign.current > 0 && vel < -0.3) {
       const elasticBounce = Math.min(0.05, absVel * 0.01);
       stretchYVal += elasticBounce;
       stretchXVal -= elasticBounce * 0.8;
+    }
+
+    if (isFalling && vel > 1.5) {
+      const droopFactor = Math.min(0.04, (vel - 1.5) * 0.008);
+      stretchYVal -= droopFactor;
+      stretchXVal += droopFactor * 0.6;
     }
     prevVelSign.current = vel;
 
@@ -762,7 +772,8 @@ export default function GameScreen() {
     prevCharY.current = characterY.current;
 
     charAnim.setValue(characterY.current);
-    const rotVal = Math.max(-1, Math.min(1, velocity.current / 8));
+    const downPointTilt = isFalling ? fallIntensity * 0.12 : 0;
+    const rotVal = Math.max(-1, Math.min(1, velocity.current / 8 + downPointTilt));
     if (Math.abs(rotVal - prevRotVal.current) > 0.03) {
       charRotation.setValue(rotVal);
       prevRotVal.current = rotVal;
@@ -911,8 +922,11 @@ export default function GameScreen() {
         ]),
       ]).start();
       if (trajectoryFade.current) trajectoryFade.current.stop();
-      trajectoryOpacity.setValue(0.7);
-      trajectoryFade.current = Animated.timing(trajectoryOpacity, { toValue: 0, duration: 400, useNativeDriver: true });
+      trajectoryOpacity.setValue(0.75);
+      trajectoryFade.current = Animated.sequence([
+        Animated.timing(trajectoryOpacity, { toValue: 0.5, duration: 160, useNativeDriver: true }),
+        Animated.timing(trajectoryOpacity, { toValue: 0, duration: 350, useNativeDriver: true }),
+      ]);
       trajectoryFade.current.start();
       if (mp.wobbleAmount > 0) {
         charWobble.setValue(0);
@@ -1050,8 +1064,11 @@ export default function GameScreen() {
         ]),
       ]).start();
       if (trajectoryFade.current) trajectoryFade.current.stop();
-      trajectoryOpacity.setValue(0.65);
-      trajectoryFade.current = Animated.timing(trajectoryOpacity, { toValue: 0, duration: 350, useNativeDriver: true });
+      trajectoryOpacity.setValue(0.7);
+      trajectoryFade.current = Animated.sequence([
+        Animated.timing(trajectoryOpacity, { toValue: 0.45, duration: 180, useNativeDriver: true }),
+        Animated.timing(trajectoryOpacity, { toValue: 0, duration: 280, useNativeDriver: true }),
+      ]);
       trajectoryFade.current.start();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1166,7 +1183,7 @@ export default function GameScreen() {
   }, [router]);
 
   const trajectoryDots = useMemo(() => {
-    const dotCount = 4;
+    const dotCount = 5;
     const dots: { offsetY: number; offsetX: number; size: number; opacity: number }[] = [];
     const curVel = velocity.current;
     const grav = (levelRef.current?.fastGravity ?? 0.36) * (movementProfileRef.current?.gravityMultiplier ?? 1);
@@ -1174,6 +1191,8 @@ export default function GameScreen() {
     let simY = 0;
     const charSize = GAME_CONFIG.CHARACTER_SIZE;
     const speed = currentObstacleSpeed.current || GAME_CONFIG.OBSTACLE_SPEED;
+    const isGoingDown = curVel > 0.3;
+    const downBoost = isGoingDown ? 1.15 : 1.0;
     for (let i = 0; i < dotCount; i++) {
       const steps = (i + 1) * 3;
       for (let s = 0; s < 3; s++) {
@@ -1182,11 +1201,13 @@ export default function GameScreen() {
         simY += simVel;
       }
       const t = (i + 1) / dotCount;
+      const baseOpacity = isGoingDown ? 0.5 : 0.35;
+      const baseSize = isGoingDown ? 0.16 : 0.13;
       dots.push({
-        offsetY: simY,
-        offsetX: speed * steps * 0.3,
-        size: Math.max(3, charSize * (0.14 - t * 0.025)),
-        opacity: 0.4 * (1 - t * 0.7),
+        offsetY: simY * downBoost,
+        offsetX: speed * steps * 0.28,
+        size: Math.max(3, charSize * (baseSize - t * 0.025)),
+        opacity: baseOpacity * (1 - t * 0.65),
       });
     }
     return dots;
