@@ -115,8 +115,8 @@ export default React.memo(function BlobCharacter({
     outputRange: ['-8deg', '0deg', '12deg'],
   });
 
-  const earW = s * 0.28;
-  const earH = s * 0.3;
+  const earW = s * 0.26;
+  const earH = s * 0.22;
 
   return (
     <Animated.View
@@ -129,28 +129,30 @@ export default React.memo(function BlobCharacter({
         },
       ]}
     >
-      {/* Blobby ears on top */}
+      {/* Blobby ears sitting on body */}
       <Animated.View style={[styles.ear, {
         width: earW, height: earH,
-        top: earH * 0.12, left: (s * 1.4 + 24 - bodyW) / 2 + bodyW * 0.1,
+        bottom: bodyH * 0.72, left: (s * 1.4 + 24 - bodyW) / 2 + bodyW * 0.08,
         backgroundColor: color,
-        borderRadius: earW * 0.45,
-        borderTopLeftRadius: earW * 0.35, borderTopRightRadius: earW * 0.55,
+        borderRadius: earW * 0.5,
+        borderTopLeftRadius: earW * 0.48, borderTopRightRadius: earW * 0.52,
+        borderBottomLeftRadius: earW * 0.3, borderBottomRightRadius: earW * 0.35,
         borderWidth: outline, borderColor: '#1A1A2E',
-        transform: [{ rotate: earWiggleRotL as any }, { rotate: '-22deg' }],
+        transform: [{ rotate: earWiggleRotL as any }, { rotate: '-30deg' }],
       }]}>
-        <View style={{ position: 'absolute', width: earW * 0.5, height: earH * 0.5, top: earH * 0.2, left: earW * 0.25, backgroundColor: earInnerColor, borderRadius: earW * 0.25 }} />
+        <View style={{ position: 'absolute', width: earW * 0.45, height: earH * 0.45, top: earH * 0.22, left: earW * 0.27, backgroundColor: earInnerColor, borderRadius: earW * 0.5 }} />
       </Animated.View>
       <Animated.View style={[styles.ear, {
         width: earW, height: earH,
-        top: earH * 0.12, right: (s * 1.4 + 24 - bodyW) / 2 + bodyW * 0.1 + (showSmoothie ? cupW + 6 : 0),
+        bottom: bodyH * 0.72, right: (s * 1.4 + 24 - bodyW) / 2 + bodyW * 0.08 + (showSmoothie ? cupW + 6 : 0),
         backgroundColor: color,
-        borderRadius: earW * 0.45,
-        borderTopLeftRadius: earW * 0.55, borderTopRightRadius: earW * 0.35,
+        borderRadius: earW * 0.5,
+        borderTopLeftRadius: earW * 0.52, borderTopRightRadius: earW * 0.48,
+        borderBottomLeftRadius: earW * 0.35, borderBottomRightRadius: earW * 0.3,
         borderWidth: outline, borderColor: '#1A1A2E',
-        transform: [{ rotate: earWiggleRotR as any }, { rotate: '22deg' }],
+        transform: [{ rotate: earWiggleRotR as any }, { rotate: '30deg' }],
       }]}>
-        <View style={{ position: 'absolute', width: earW * 0.5, height: earH * 0.5, top: earH * 0.2, right: earW * 0.25, backgroundColor: earInnerColor, borderRadius: earW * 0.25 }} />
+        <View style={{ position: 'absolute', width: earW * 0.45, height: earH * 0.45, top: earH * 0.22, right: earW * 0.27, backgroundColor: earInnerColor, borderRadius: earW * 0.5 }} />
       </Animated.View>
 
       {/* Arms */}
