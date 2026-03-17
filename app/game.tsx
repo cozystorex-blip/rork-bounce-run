@@ -284,6 +284,9 @@ export default function GameScreen() {
   }, [charStretchX, charStretchY, skyShift]);
 
   const lastGapY = useRef(SCREEN_HEIGHT / 2);
+  const prevCharY = useRef(SCREEN_HEIGHT / 2);
+  const prevCharBottom = useRef(SCREEN_HEIGHT / 2);
+  const currentObstacleSpeed = useRef(GAME_CONFIG.OBSTACLE_SPEED);
 
   const isNeonMap = mapTheme.id === 'neon';
   const baseX = isNeonMap ? FLAPPY_BASE_X : CHARACTER_BASE_X;
@@ -385,7 +388,6 @@ export default function GameScreen() {
     const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
     const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.97;
     const cx = getCharX();
-    const insetX = scale(OBSTACLE_TUNING.HITBOX_INSET_X);
     const halfHitX = hitSizeX / 2;
     const halfHitY = hitSizeY / 2;
     const centerY = cy + GAME_CONFIG.CHARACTER_SIZE / 2;
@@ -401,6 +403,8 @@ export default function GameScreen() {
     }
 
     const capHalfW = POLE_CAP_W / 2;
+    const speedBuf = Math.ceil(currentObstacleSpeed.current) + 2;
+    const prevBot = prevCharBottom.current;
 
     for (let oi = 0; oi < obs.length; oi++) {
       const o = obs[oi];
@@ -408,21 +412,35 @@ export default function GameScreen() {
       const gapStart = o.gapY - gap / 2;
       const gapEnd = o.gapY + gap / 2;
 
-      const pipeLeft = o.x - capHalfW + insetX;
-      const pipeRight = o.x + capHalfW - insetX;
+      const pipeLeft = o.x - capHalfW - speedBuf;
+      const pipeRight = o.x + capHalfW;
 
       if (charRight > pipeLeft && charLeft < pipeRight) {
         if (charTop < gapStart) return true;
         if (charBottom > gapEnd) return true;
+
+        if (prevBot <= gapEnd && charBottom > gapEnd) return true;
+
+        if (charBottom > gapEnd - 2 && charTop < gapEnd + POLE_CAP_H) return true;
       }
 
       const shaftHalfW = POLE_SHAFT_W / 2;
-      const shaftLeft = o.x - shaftHalfW;
+      const shaftLeft = o.x - shaftHalfW - speedBuf;
       const shaftRight = o.x + shaftHalfW;
 
       if (charRight > shaftLeft && charLeft < shaftRight) {
         if (charTop < gapStart - POLE_CAP_H) return true;
         if (charBottom > gapEnd + POLE_CAP_H) return true;
+      }
+
+      const baseHalfW = POLE_BASE_W / 2;
+      const baseLeft = o.x - baseHalfW - speedBuf;
+      const baseRight = o.x + baseHalfW;
+      if (charRight > baseLeft && charLeft < baseRight) {
+        const botShaftTop = gapEnd + POLE_CAP_H;
+        const botShaftH = Math.max(0, floorY - botShaftTop - POLE_BASE_H);
+        const botBaseTop = botShaftTop + botShaftH;
+        if (charBottom > botBaseTop) return true;
       }
     }
     return false;
@@ -607,6 +625,7 @@ export default function GameScreen() {
     if (tapSpeedBonus.current < 0.001) tapSpeedBonus.current = 0;
     const clampedTapBonus = Math.min(tapSpeedBonus.current, GAME_CONFIG.MAX_TAP_SPEED_BONUS);
     const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus) * lvl.fastSpeedMult;
+    currentObstacleSpeed.current = currentSpeed;
     const cx = getCharX();
 
     const obs = obstacles.current;
@@ -698,11 +717,15 @@ export default function GameScreen() {
 
     distanceRef.current += currentSpeed * 0.1;
 
+    prevCharBottom.current = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2 + (GAME_CONFIG.CHARACTER_SIZE * 0.97) / 2;
+
     if (checkCollision(characterY.current, obs)) {
       setDistance(distanceRef.current);
       triggerGameOver();
       return false;
     }
+
+    prevCharY.current = characterY.current;
 
     charAnim.setValue(characterY.current);
     const rotVal = Math.max(-1, Math.min(1, velocity.current / 8));
@@ -1042,6 +1065,9 @@ export default function GameScreen() {
     targetXDrift.current = 0;
     tapSideForce.current = 0;
     characterX.current = isNeonMap ? FLAPPY_BASE_X : CHARACTER_BASE_X;
+    prevCharY.current = SCREEN_HEIGHT / 2;
+    prevCharBottom.current = SCREEN_HEIGHT / 2;
+    currentObstacleSpeed.current = GAME_CONFIG.OBSTACLE_SPEED;
     lastTrickTime.current = 0;
     trickCombo.current = 0;
     setComboCount(0);
