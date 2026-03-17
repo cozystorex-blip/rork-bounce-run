@@ -139,8 +139,8 @@ function generateCloud(id: number, startX?: number): CloudData {
   };
 }
 
-const GameBlobSkin = React.memo(function GameBlobSkin({ skinData }: { skinData: { id: string; name: string; personality: string; bodyColor: string; bodyDark: string; eyeStyle: string; mouthStyle: string; hatColor: string; hatBand: string; hatStyle: string; accentColor: string; cheekColor: string; locked: boolean; unlockRequirement: number; labelColor: string; labelBg: string; speechLine: string } }) {
-  return <BlobSkin skin={skinData as any} size={GAME_CONFIG.CHARACTER_SIZE} animated={false} />;
+const GameBlobSkin = React.memo(function GameBlobSkin({ skinData, stretchY, stretchX }: { skinData: { id: string; name: string; personality: string; bodyColor: string; bodyDark: string; eyeStyle: string; mouthStyle: string; hatColor: string; hatBand: string; hatStyle: string; accentColor: string; cheekColor: string; locked: boolean; unlockRequirement: number; labelColor: string; labelBg: string; speechLine: string }; stretchY?: Animated.Value; stretchX?: Animated.Value }) {
+  return <BlobSkin skin={skinData as any} size={GAME_CONFIG.CHARACTER_SIZE} animated={false} externalScaleY={stretchY} externalScaleX={stretchX} />;
 });
 
 export default function GameScreen() {
@@ -1459,7 +1459,7 @@ export default function GameScreen() {
               <Animated.View style={isNeonMap ? {
                 transform: [{ rotate: trickSpinAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-360deg', '0deg', '360deg'] }) }],
               } : undefined}>
-                <GameBlobSkin skinData={currentSkin} />
+                <GameBlobSkin skinData={currentSkin} stretchY={charStretchY} stretchX={charStretchX} />
               </Animated.View>
             </Animated.View>
 

@@ -6,6 +6,8 @@ interface BlobSkinProps {
   skin: SkinData;
   size?: number;
   animated?: boolean;
+  externalScaleY?: Animated.Value;
+  externalScaleX?: Animated.Value;
 }
 
 function adjustColor(hex: string, amount: number): string {
@@ -16,7 +18,7 @@ function adjustColor(hex: string, amount: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
-export default React.memo(function BlobSkin({ skin, size = 80, animated = true }: BlobSkinProps) {
+export default React.memo(function BlobSkin({ skin, size = 80, animated = true, externalScaleY, externalScaleX }: BlobSkinProps) {
   const bobAnim = useRef(new Animated.Value(0)).current;
   const squishAnim = useRef(new Animated.Value(1)).current;
   const blinkAnim = useRef(new Animated.Value(1)).current;
@@ -290,6 +292,43 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
   const Wrapper = animated ? Animated.View : View;
   const wrapTransform = animated ? [{ translateY: bobAnim }, { scaleY: squishAnim }] : [];
 
+  const inverseFaceScaleY = animated
+    ? squishAnim.interpolate({
+        inputRange: [0.9, 0.97, 1, 1.04, 1.1],
+        outputRange: [1 / 0.9, 1 / 0.97, 1, 1 / 1.04, 1 / 1.1],
+      })
+    : externalScaleY
+      ? externalScaleY.interpolate({
+          inputRange: [0.7, 0.88, 1, 1.32, 1.5],
+          outputRange: [1 / 0.7, 1 / 0.88, 1, 1 / 1.32, 1 / 1.5],
+        })
+      : undefined;
+
+  const inverseFaceScaleX = animated
+    ? undefined
+    : externalScaleX
+      ? externalScaleX.interpolate({
+          inputRange: [0.7, 0.76, 1, 1.14, 1.5],
+          outputRange: [1 / 0.7, 1 / 0.76, 1, 1 / 1.14, 1 / 1.5],
+        })
+      : undefined;
+
+  const hasFaceCounter = inverseFaceScaleY || inverseFaceScaleX;
+  const faceCounterTransform: any[] = [];
+  if (inverseFaceScaleY) faceCounterTransform.push({ scaleY: inverseFaceScaleY });
+  if (inverseFaceScaleX) faceCounterTransform.push({ scaleX: inverseFaceScaleX });
+
+  const faceContent = (
+    <>
+      {renderMask()}
+      {renderEyes()}
+      {renderCheeks()}
+      {renderMouth()}
+      {renderChestLetter()}
+      {renderChain()}
+    </>
+  );
+
   return (
     <Wrapper
       style={[
@@ -320,12 +359,11 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
       >
         <View style={[ls.bodyShine, { width: bodyW * 0.22, height: bodyH * 0.09, top: bodyH * 0.07, left: bodyW * 0.13, borderRadius: bodyH * 0.045 }]} />
         <View style={[ls.bodyShine2, { width: bodyW * 0.11, height: bodyH * 0.05, top: bodyH * 0.2, left: bodyW * 0.1, borderRadius: bodyH * 0.025 }]} />
-        {renderMask()}
-        {renderEyes()}
-        {renderCheeks()}
-        {renderMouth()}
-        {renderChestLetter()}
-        {renderChain()}
+        {hasFaceCounter ? (
+          <Animated.View style={{ position: 'absolute', width: '100%', height: '100%', transform: faceCounterTransform }}>
+            {faceContent}
+          </Animated.View>
+        ) : faceContent}
       </View>
     </Wrapper>
   );

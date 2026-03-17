@@ -96,6 +96,11 @@ export default React.memo(function BlobCharacter({
     outputRange: [0, -3],
   });
 
+  const inverseFaceScaleY = squishAnim.interpolate({
+    inputRange: [0.9, 0.96, 1, 1.04, 1.1],
+    outputRange: [1 / 0.9, 1 / 0.96, 1, 1 / 1.04, 1 / 1.1],
+  });
+
   return (
     <Animated.View
       style={[
@@ -161,39 +166,41 @@ export default React.memo(function BlobCharacter({
         <View style={[styles.bodyShine, { width: bodyW * 0.24, height: bodyH * 0.1, top: bodyH * 0.08, left: bodyW * 0.14, borderRadius: bodyH * 0.05 }]} />
         <View style={[styles.bodyShine2, { width: bodyW * 0.12, height: bodyH * 0.06, top: bodyH * 0.22, left: bodyW * 0.12, borderRadius: bodyH * 0.03 }]} />
 
-        {/* Eyes */}
-        <Animated.View style={[styles.eyeOuter, { width: eyeW, height: eyeH, borderRadius: eyeW / 2, borderWidth: outline, top: bodyH * 0.2, left: bodyW * 0.12, transform: [{ rotate: '-5deg' }, { scaleY: blinkAnim }] }]}>
-          <View style={[styles.pupil, { width: pupilSize, height: pupilSize, borderRadius: pupilSize / 2, marginTop: eyeH * 0.14, marginLeft: eyeW * 0.14 }]}>
-            <View style={[styles.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: pupilHL / 2, top: pupilSize * 0.06, left: pupilSize * 0.06 }]} />
-            <View style={[styles.pupilHL2, { width: pupilHL * 0.5, height: pupilHL * 0.5, borderRadius: pupilHL * 0.25, bottom: pupilSize * 0.1, right: pupilSize * 0.08 }]} />
-          </View>
+        <Animated.View style={{ position: 'absolute', width: '100%', height: '100%', transform: [{ scaleY: inverseFaceScaleY }] }}>
+          {/* Eyes */}
+          <Animated.View style={[styles.eyeOuter, { width: eyeW, height: eyeH, borderRadius: eyeW / 2, borderWidth: outline, top: bodyH * 0.2, left: bodyW * 0.12, transform: [{ rotate: '-5deg' }, { scaleY: blinkAnim }] }]}>
+            <View style={[styles.pupil, { width: pupilSize, height: pupilSize, borderRadius: pupilSize / 2, marginTop: eyeH * 0.14, marginLeft: eyeW * 0.14 }]}>
+              <View style={[styles.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: pupilHL / 2, top: pupilSize * 0.06, left: pupilSize * 0.06 }]} />
+              <View style={[styles.pupilHL2, { width: pupilHL * 0.5, height: pupilHL * 0.5, borderRadius: pupilHL * 0.25, bottom: pupilSize * 0.1, right: pupilSize * 0.08 }]} />
+            </View>
+          </Animated.View>
+          <Animated.View style={[styles.eyeOuter, { width: eyeW, height: eyeH, borderRadius: eyeW / 2, borderWidth: outline, top: bodyH * 0.2, right: bodyW * 0.12, transform: [{ rotate: '5deg' }, { scaleY: blinkAnim }] }]}>
+            <View style={[styles.pupil, { width: pupilSize, height: pupilSize, borderRadius: pupilSize / 2, marginTop: eyeH * 0.14, marginLeft: eyeW * 0.14 }]}>
+              <View style={[styles.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: pupilHL / 2, top: pupilSize * 0.06, left: pupilSize * 0.06 }]} />
+              <View style={[styles.pupilHL2, { width: pupilHL * 0.5, height: pupilHL * 0.5, borderRadius: pupilHL * 0.25, bottom: pupilSize * 0.1, right: pupilSize * 0.08 }]} />
+            </View>
+          </Animated.View>
+
+          {/* Brows */}
+          <View style={[styles.brow, { top: bodyH * 0.14, left: bodyW * 0.08, width: eyeW * 1.0, height: outline * 2, borderRadius: outline, transform: [{ rotate: '14deg' }] }]} />
+          <View style={[styles.brow, { top: bodyH * 0.14, right: bodyW * 0.08, width: eyeW * 1.0, height: outline * 2, borderRadius: outline, transform: [{ rotate: '-14deg' }] }]} />
+
+          {/* Cheeks */}
+          <View style={[styles.cheek, { width: cheekSize, height: cheekSize * 0.5, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, left: bodyW * 0.06 }]} />
+          <View style={[styles.cheek, { width: cheekSize, height: cheekSize * 0.5, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, right: bodyW * 0.06 }]} />
+
+          {/* Chain */}
+          <View style={[styles.chain, { bottom: bodyH * 0.34, left: bodyW * 0.36, width: s * 0.26, height: s * 0.035, borderRadius: s * 0.018, borderWidth: outline * 0.4 }]} />
+
+          {/* Mouth */}
+          {showSmoothie ? (
+            <View style={[styles.sippingMouth, { width: s * 0.14, height: s * 0.14, bottom: bodyH * 0.1, left: bodyW * 0.5 - s * 0.07, borderRadius: s * 0.07, borderWidth: outline * 0.65 }]} />
+          ) : (
+            <View style={[styles.mouth, { width: s * 0.28, height: s * 0.12, bottom: bodyH * 0.1, left: bodyW * 0.5 - (s * 0.28) / 2 + s * 0.02, borderBottomLeftRadius: s * 0.04, borderBottomRightRadius: s * 0.14, borderTopLeftRadius: s * 0.02, borderTopRightRadius: s * 0.02, borderWidth: outline * 0.65, transform: [{ rotate: '-3deg' }] }]}>
+              <View style={[styles.tooth, { width: s * 0.05, height: s * 0.04, top: -1, right: s * 0.05 }]} />
+            </View>
+          )}
         </Animated.View>
-        <Animated.View style={[styles.eyeOuter, { width: eyeW, height: eyeH, borderRadius: eyeW / 2, borderWidth: outline, top: bodyH * 0.2, right: bodyW * 0.12, transform: [{ rotate: '5deg' }, { scaleY: blinkAnim }] }]}>
-          <View style={[styles.pupil, { width: pupilSize, height: pupilSize, borderRadius: pupilSize / 2, marginTop: eyeH * 0.14, marginLeft: eyeW * 0.14 }]}>
-            <View style={[styles.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: pupilHL / 2, top: pupilSize * 0.06, left: pupilSize * 0.06 }]} />
-            <View style={[styles.pupilHL2, { width: pupilHL * 0.5, height: pupilHL * 0.5, borderRadius: pupilHL * 0.25, bottom: pupilSize * 0.1, right: pupilSize * 0.08 }]} />
-          </View>
-        </Animated.View>
-
-        {/* Brows */}
-        <View style={[styles.brow, { top: bodyH * 0.14, left: bodyW * 0.08, width: eyeW * 1.0, height: outline * 2, borderRadius: outline, transform: [{ rotate: '14deg' }] }]} />
-        <View style={[styles.brow, { top: bodyH * 0.14, right: bodyW * 0.08, width: eyeW * 1.0, height: outline * 2, borderRadius: outline, transform: [{ rotate: '-14deg' }] }]} />
-
-        {/* Cheeks */}
-        <View style={[styles.cheek, { width: cheekSize, height: cheekSize * 0.5, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, left: bodyW * 0.06 }]} />
-        <View style={[styles.cheek, { width: cheekSize, height: cheekSize * 0.5, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, right: bodyW * 0.06 }]} />
-
-        {/* Chain */}
-        <View style={[styles.chain, { bottom: bodyH * 0.34, left: bodyW * 0.36, width: s * 0.26, height: s * 0.035, borderRadius: s * 0.018, borderWidth: outline * 0.4 }]} />
-
-        {/* Mouth */}
-        {showSmoothie ? (
-          <View style={[styles.sippingMouth, { width: s * 0.14, height: s * 0.14, bottom: bodyH * 0.1, left: bodyW * 0.5 - s * 0.07, borderRadius: s * 0.07, borderWidth: outline * 0.65 }]} />
-        ) : (
-          <View style={[styles.mouth, { width: s * 0.28, height: s * 0.12, bottom: bodyH * 0.1, left: bodyW * 0.5 - (s * 0.28) / 2 + s * 0.02, borderBottomLeftRadius: s * 0.04, borderBottomRightRadius: s * 0.14, borderTopLeftRadius: s * 0.02, borderTopRightRadius: s * 0.02, borderWidth: outline * 0.65, transform: [{ rotate: '-3deg' }] }]}>
-            <View style={[styles.tooth, { width: s * 0.05, height: s * 0.04, top: -1, right: s * 0.05 }]} />
-          </View>
-        )}
       </View>
 
       {/* Hat */}
