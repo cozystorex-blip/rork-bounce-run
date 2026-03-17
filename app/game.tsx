@@ -189,9 +189,13 @@ export default function GameScreen() {
   const charStretchY = useRef(new Animated.Value(1)).current;
   const charWobble = useRef(new Animated.Value(0)).current;
 
+  const trajectoryOpacity = useRef(new Animated.Value(0)).current;
+  const trajectoryFade = useRef<Animated.CompositeAnimation | null>(null);
+
   const prevRotVal = useRef(0);
   const prevStretchX = useRef(1);
   const prevStretchY = useRef(1);
+  const prevVelSign = useRef(0);
 
   const xDrift = useRef(0);
   const targetXDrift = useRef(0);
@@ -610,13 +614,38 @@ export default function GameScreen() {
     }
 
     const absVel = Math.abs(vel);
-    const stretchYVal = Math.min(1.28, 1 + absVel * 0.02);
-    const stretchXVal = Math.max(0.8, 1 - absVel * 0.012);
-    if (Math.abs(stretchYVal - prevStretchY.current) > 0.06) {
+    let stretchYVal: number;
+    let stretchXVal: number;
+
+    if (vel < -0.5) {
+      stretchYVal = Math.min(1.32, 1 + absVel * 0.028);
+      stretchXVal = Math.max(0.76, 1 - absVel * 0.018);
+    } else if (vel > 0.8) {
+      const fallT = Math.min(1, absVel / 5);
+      stretchYVal = Math.max(0.88, 1 - fallT * 0.12);
+      stretchXVal = Math.min(1.14, 1 + fallT * 0.14);
+    } else {
+      const returnSpeed = 0.15;
+      stretchYVal = prevStretchY.current + (1 - prevStretchY.current) * returnSpeed;
+      stretchXVal = prevStretchX.current + (1 - prevStretchX.current) * returnSpeed;
+    }
+
+    if (prevVelSign.current < 0 && vel > 0.3) {
+      const elasticBounce = Math.min(0.06, absVel * 0.012);
+      stretchXVal += elasticBounce;
+      stretchYVal -= elasticBounce * 0.8;
+    } else if (prevVelSign.current > 0 && vel < -0.3) {
+      const elasticBounce = Math.min(0.05, absVel * 0.01);
+      stretchYVal += elasticBounce;
+      stretchXVal -= elasticBounce * 0.8;
+    }
+    prevVelSign.current = vel;
+
+    if (Math.abs(stretchYVal - prevStretchY.current) > 0.008) {
       charStretchY.setValue(stretchYVal);
       prevStretchY.current = stretchYVal;
     }
-    if (Math.abs(stretchXVal - prevStretchX.current) > 0.06) {
+    if (Math.abs(stretchXVal - prevStretchX.current) > 0.008) {
       charStretchX.setValue(stretchXVal);
       prevStretchX.current = stretchXVal;
     }
@@ -729,7 +758,7 @@ export default function GameScreen() {
 
     charAnim.setValue(characterY.current);
     const rotVal = Math.max(-1, Math.min(1, velocity.current / 8));
-    if (Math.abs(rotVal - prevRotVal.current) > 0.05) {
+    if (Math.abs(rotVal - prevRotVal.current) > 0.03) {
       charRotation.setValue(rotVal);
       prevRotVal.current = rotVal;
     }
@@ -866,16 +895,20 @@ export default function GameScreen() {
       charStretchY.stopAnimation();
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(charStretchX, { toValue: 1.18, duration: 60, useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 0.92, friction: 3, tension: 200, useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
+          Animated.timing(charStretchX, { toValue: 0.78, duration: 50, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 1.08, friction: 3, tension: 220, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 1, friction: 4, tension: 140, useNativeDriver: true }),
         ]),
         Animated.sequence([
-          Animated.timing(charStretchY, { toValue: 0.82, duration: 60, useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1.1, friction: 3, tension: 200, useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
+          Animated.timing(charStretchY, { toValue: 1.22, duration: 50, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 0.92, friction: 3, tension: 220, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1, friction: 4, tension: 140, useNativeDriver: true }),
         ]),
       ]).start();
+      if (trajectoryFade.current) trajectoryFade.current.stop();
+      trajectoryOpacity.setValue(0.7);
+      trajectoryFade.current = Animated.timing(trajectoryOpacity, { toValue: 0, duration: 400, useNativeDriver: true });
+      trajectoryFade.current.start();
       if (mp.wobbleAmount > 0) {
         charWobble.setValue(0);
         Animated.sequence([
@@ -1011,6 +1044,10 @@ export default function GameScreen() {
           Animated.spring(charStretchY, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 0.8, useNativeDriver: true }),
         ]),
       ]).start();
+      if (trajectoryFade.current) trajectoryFade.current.stop();
+      trajectoryOpacity.setValue(0.65);
+      trajectoryFade.current = Animated.timing(trajectoryOpacity, { toValue: 0, duration: 350, useNativeDriver: true });
+      trajectoryFade.current.start();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [charScale, charAnim, charStretchY, charWobble, isNeonMap, detectTrickZone, showTrickLabel, triggerTrickSpin, updateCombo, safeTop, charXAnim, setGameStatus]);
@@ -1109,16 +1146,49 @@ export default function GameScreen() {
     charStretchX.setValue(1);
     charStretchY.setValue(1);
     charWobble.setValue(0);
+    trajectoryOpacity.setValue(0);
+    if (trajectoryFade.current) { trajectoryFade.current.stop(); trajectoryFade.current = null; }
+    prevVelSign.current = 0;
     gameOverOpacity.setValue(0);
     gameOverScale.setValue(0.8);
     setGameStatus('ready');
-  }, [charAnim, charXAnim, charRotation, charStretchX, charStretchY, charWobble, gameOverOpacity, gameOverScale, levelUpAnim, levelUpScale, isNeonMap, trickSpinAnim, setGameStatus, setActiveTrick]);
+  }, [charAnim, charXAnim, charRotation, charStretchX, charStretchY, charWobble, trajectoryOpacity, gameOverOpacity, gameOverScale, levelUpAnim, levelUpScale, isNeonMap, trickSpinAnim, setGameStatus, setActiveTrick]);
 
   const handleHome = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     void audioManager.stopMusic();
     router.back();
   }, [router]);
+
+  const trajectoryDots = useMemo(() => {
+    const dotCount = 4;
+    const dots: { offsetY: number; offsetX: number; size: number; opacity: number }[] = [];
+    const curVel = velocity.current;
+    const grav = (levelRef.current?.fastGravity ?? 0.36) * (movementProfileRef.current?.gravityMultiplier ?? 1);
+    let simVel = curVel;
+    let simY = 0;
+    const charSize = GAME_CONFIG.CHARACTER_SIZE;
+    const speed = currentObstacleSpeed.current || GAME_CONFIG.OBSTACLE_SPEED;
+    for (let i = 0; i < dotCount; i++) {
+      const steps = (i + 1) * 3;
+      for (let s = 0; s < 3; s++) {
+        simVel += grav;
+        simVel = Math.min(simVel, GAME_CONFIG.MAX_FALL_VELOCITY);
+        simY += simVel;
+      }
+      const t = (i + 1) / dotCount;
+      dots.push({
+        offsetY: simY,
+        offsetX: speed * steps * 0.3,
+        size: Math.max(3, charSize * (0.14 - t * 0.025)),
+        opacity: 0.4 * (1 - t * 0.7),
+      });
+    }
+    return dots;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderTick]);
+
+  const blobColor = currentSkin?.bodyColor ?? '#FFD84A';
 
   const charRotateDeg = charRotation.interpolate({
     inputRange: [-1, 0, 1],
@@ -1350,6 +1420,23 @@ export default function GameScreen() {
             {renderedObstacles}
 
             {groundStrip}
+
+            {gameStatus === 'playing' && trajectoryDots.map((dot, i) => (
+              <Animated.View
+                key={`tdot-${i}`}
+                pointerEvents="none"
+                style={{
+                  position: 'absolute' as const,
+                  left: baseX + dot.offsetX - dot.size / 2,
+                  width: dot.size,
+                  height: dot.size,
+                  borderRadius: dot.size / 2,
+                  backgroundColor: blobColor,
+                  opacity: Animated.multiply(trajectoryOpacity, dot.opacity),
+                  transform: [{ translateY: Animated.add(charAnim, dot.offsetY + GAME_CONFIG.CHARACTER_SIZE / 2) }],
+                }}
+              />
+            ))}
 
             <Animated.View
               style={[
