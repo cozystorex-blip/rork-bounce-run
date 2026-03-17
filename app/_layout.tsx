@@ -23,6 +23,7 @@ function RootLayoutNav() {
           animationTypeForReplace: 'push',
         }}
       />
+      <Stack.Screen name="support" options={{ headerShown: true, headerTitle: 'Support', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="+not-found" />
     </Stack>
   );
