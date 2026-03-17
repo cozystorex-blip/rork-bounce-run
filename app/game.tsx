@@ -191,6 +191,9 @@ export default function GameScreen() {
   const poleSpeedBoost = useRef(0);
   const polePulseTimer = useRef(0);
   const polePulseIntensity = useRef(0);
+  const rollbackTimer = useRef(0);
+  const rollbackIntensity = useRef(0);
+  const rollbackDirection = useRef(0);
 
   const lastTapTime = useRef(0);
   const tapInterval = useRef(0);
@@ -760,6 +763,40 @@ export default function GameScreen() {
       stretchXVal *= (1 - rhythmWave * 0.002);
     }
 
+    if (rollbackTimer.current > 0) {
+      rollbackTimer.current--;
+      const rbDur = 24;
+      const rbt = rollbackTimer.current / rbDur;
+      const rbInt = rollbackIntensity.current;
+      const rbDir = rollbackDirection.current;
+      if (rbt > 0.7) {
+        const snapBack = (rbt - 0.7) / 0.3;
+        const eased = snapBack * snapBack;
+        const xPull = eased * -4.5 * rbInt;
+        if (!isNeonMap) {
+          xDrift.current += xPull * 0.12;
+        }
+        stretchXVal *= (1 - eased * 0.06 * rbInt);
+        stretchYVal *= (1 + eased * 0.08 * rbInt);
+        const vertSquish = eased * 0.012 * rbInt * rbDir;
+        stretchYVal *= (1 + vertSquish);
+      } else if (rbt > 0.3) {
+        const release = (rbt - 0.3) / 0.4;
+        const eased = Math.sin(release * Math.PI);
+        const xPush = eased * 2.8 * rbInt;
+        if (!isNeonMap) {
+          xDrift.current += xPush * 0.08;
+        }
+        stretchXVal *= (1 + eased * 0.045 * rbInt);
+        stretchYVal *= (1 - eased * 0.03 * rbInt);
+      } else {
+        const settle = rbt / 0.3;
+        const wave = Math.sin(settle * Math.PI * 1.2) * settle;
+        stretchXVal *= (1 + wave * 0.018 * rbInt);
+        stretchYVal *= (1 - wave * 0.012 * rbInt);
+      }
+    }
+
     if (polePulseTimer.current > 0) {
       polePulseTimer.current--;
       const pulseDur = 28;
@@ -882,6 +919,17 @@ export default function GameScreen() {
 
         polePulseTimer.current = 28;
         polePulseIntensity.current = Math.min(1.5, 0.6 + consecutiveClears.current * 0.12 + streakFactor * 0.3);
+
+        const charCenterY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+        const halfGap = o.gapSize / 2;
+        const distFromCenter = Math.abs(charCenterY - o.gapY);
+        const gapTightness = distFromCenter / halfGap;
+        if (gapTightness > 0.45) {
+          const tightFactor = Math.min(1, (gapTightness - 0.45) / 0.45);
+          rollbackTimer.current = 24;
+          rollbackIntensity.current = tightFactor * tightFactor * (0.6 + blobby * 0.4);
+          rollbackDirection.current = charCenterY > o.gapY ? 1 : -1;
+        }
 
         const cadenceBonus = polePassCadence.current > 0 ? Math.min(0.04, 60 / Math.max(40, polePassCadence.current) * 0.014) : 0;
         const momentumBounce = gallopMomentum.current * 0.012;
@@ -1427,6 +1475,9 @@ export default function GameScreen() {
     poleSpeedBoost.current = 0;
     polePulseTimer.current = 0;
     polePulseIntensity.current = 0;
+    rollbackTimer.current = 0;
+    rollbackIntensity.current = 0;
+    rollbackDirection.current = 0;
     lastTapTime.current = 0;
     tapInterval.current = 0;
     rapidTapCount.current = 0;
