@@ -374,15 +374,17 @@ export default function GameScreen() {
   }, [safeTop]);
 
   const checkCollision = useCallback((cy: number, obs: Obstacle[]): boolean => {
-    const hitSize = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
+    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
+    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.97;
     const cx = getCharX();
     const insetX = scale(OBSTACLE_TUNING.HITBOX_INSET_X);
-    const halfHit = hitSize / 2;
+    const halfHitX = hitSizeX / 2;
+    const halfHitY = hitSizeY / 2;
     const centerY = cy + GAME_CONFIG.CHARACTER_SIZE / 2;
-    const charLeft = cx - halfHit;
-    const charRight = cx + halfHit;
-    const charTop = centerY - halfHit;
-    const charBottom = centerY + halfHit;
+    const charLeft = cx - halfHitX;
+    const charRight = cx + halfHitX;
+    const charTop = centerY - halfHitY;
+    const charBottom = centerY + halfHitY;
 
     const ceilingY = safeTop;
     const floorY = SCREEN_HEIGHT - GROUND_HEIGHT;
@@ -404,6 +406,15 @@ export default function GameScreen() {
       if (charRight > pipeLeft && charLeft < pipeRight) {
         if (charTop < gapStart) return true;
         if (charBottom > gapEnd) return true;
+      }
+
+      const shaftHalfW = POLE_SHAFT_W / 2;
+      const shaftLeft = o.x - shaftHalfW;
+      const shaftRight = o.x + shaftHalfW;
+
+      if (charRight > shaftLeft && charLeft < shaftRight) {
+        if (charTop < gapStart - POLE_CAP_H) return true;
+        if (charBottom > gapEnd + POLE_CAP_H) return true;
       }
     }
     return false;
