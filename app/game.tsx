@@ -659,11 +659,14 @@ export default function GameScreen() {
     } else if (vel > 0.6) {
       const fallT = Math.min(1, absVel / 5);
       const downPointT = Math.min(1, absVel / 4);
-      const droopGrow = sustainFallT * 0.035;
+      const droopGrow = sustainFallT * 0.04;
       const softDroopCurve = fallT * fallT;
-      const blobSettle = Math.sin(sustainFallT * Math.PI * 0.4) * 0.012;
-      stretchYVal = Math.max(0.82, 1 - softDroopCurve * 0.11 - fallT * 0.04 - downPointT * 0.035 - droopGrow - blobSettle);
-      stretchXVal = Math.min(1.19, 1 + softDroopCurve * 0.12 + fallT * 0.04 + downPointT * 0.025 + droopGrow * 0.5 + blobSettle * 0.6);
+      const blobSettle = Math.sin(sustainFallT * Math.PI * 0.45) * 0.015;
+      const softDroopPulse = Math.sin(sustainedFallFrames.current * 0.12) * sustainFallT * 0.005;
+      const droopEaseIn = Math.min(1, (vel - 0.6) / 2.0);
+      const gentleSquash = droopEaseIn * droopEaseIn * 0.018;
+      stretchYVal = Math.max(0.80, 1 - softDroopCurve * 0.12 - fallT * 0.045 - downPointT * 0.038 - droopGrow - blobSettle - gentleSquash - softDroopPulse);
+      stretchXVal = Math.min(1.21, 1 + softDroopCurve * 0.13 + fallT * 0.045 + downPointT * 0.028 + droopGrow * 0.55 + blobSettle * 0.65 + gentleSquash * 0.7 + Math.abs(softDroopPulse) * 0.4);
     } else {
       const returnSpeed = 0.12;
       stretchYVal = prevStretchY.current + (1 - prevStretchY.current) * returnSpeed;
@@ -675,10 +678,11 @@ export default function GameScreen() {
       if (dirChangeSmooth.current < 0.005) dirChangeSmooth.current = 0;
     }
     if (prevVelSign.current < 0 && vel > 0.3) {
-      dirChangeSmooth.current = Math.min(1, Math.max(dirChangeSmooth.current, absVel * 0.15));
-      const elasticBounce = dirChangeSmooth.current * 0.055;
-      stretchXVal += elasticBounce;
-      stretchYVal -= elasticBounce * 0.8;
+      dirChangeSmooth.current = Math.min(1, Math.max(dirChangeSmooth.current, absVel * 0.16));
+      const elasticBounce = dirChangeSmooth.current * 0.06;
+      const settleWobble = Math.sin(dirChangeSmooth.current * Math.PI * 1.5) * 0.008;
+      stretchXVal += elasticBounce + Math.abs(settleWobble) * 0.3;
+      stretchYVal -= elasticBounce * 0.82 + settleWobble;
     } else if (prevVelSign.current > 0 && vel < -0.3) {
       dirChangeSmooth.current = Math.min(1, Math.max(dirChangeSmooth.current, absVel * 0.12));
       const elasticBounce = dirChangeSmooth.current * 0.04;
@@ -687,12 +691,13 @@ export default function GameScreen() {
     }
 
     if (isFalling && vel > 1.2) {
-      const droopBase = Math.min(0.045, (vel - 1.2) * 0.009);
-      const sustainDroop = sustainFallT * 0.02;
-      const blobDroopWobble = Math.sin(sustainedFallFrames.current * 0.18) * sustainFallT * 0.006;
-      const softSettleEase = Math.min(1, (vel - 1.2) / 3) * 0.008;
-      stretchYVal -= droopBase + sustainDroop + softSettleEase + blobDroopWobble;
-      stretchXVal += (droopBase + sustainDroop + softSettleEase) * 0.55 + Math.abs(blobDroopWobble) * 0.3;
+      const droopBase = Math.min(0.05, (vel - 1.2) * 0.01);
+      const sustainDroop = sustainFallT * 0.024;
+      const blobDroopWobble = Math.sin(sustainedFallFrames.current * 0.15) * sustainFallT * 0.008;
+      const softSettleEase = Math.min(1, (vel - 1.2) / 3) * 0.01;
+      const organicPulse = Math.sin(sustainedFallFrames.current * 0.22) * Math.min(0.004, sustainFallT * 0.004);
+      stretchYVal -= droopBase + sustainDroop + softSettleEase + blobDroopWobble + organicPulse;
+      stretchXVal += (droopBase + sustainDroop + softSettleEase) * 0.58 + Math.abs(blobDroopWobble) * 0.35 + Math.abs(organicPulse) * 0.3;
     }
 
     if (gallopTimer.current > 0) {
