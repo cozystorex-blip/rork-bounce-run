@@ -393,7 +393,6 @@ export default function GameScreen() {
     }
 
     const capHalfW = POLE_CAP_W / 2;
-    const tinyInset = scale(1);
 
     for (let oi = 0; oi < obs.length; oi++) {
       const o = obs[oi];
@@ -401,30 +400,18 @@ export default function GameScreen() {
       const gapStart = o.gapY - gap / 2;
       const gapEnd = o.gapY + gap / 2;
 
-      const pipeLeft = o.x - capHalfW + tinyInset;
-      const pipeRight = o.x + capHalfW - tinyInset;
+      const pipeLeft = o.x - capHalfW;
+      const pipeRight = o.x + capHalfW;
 
-      const xOverlap = charRight > pipeLeft && charLeft < pipeRight;
+      const lvl = levelRef.current;
+      const clampedTapBonus = Math.min(tapSpeedBonus.current, GAME_CONFIG.MAX_TAP_SPEED_BONUS);
+      const frameSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus) * lvl.fastSpeedMult;
+      const sweptRight = pipeRight + frameSpeed;
+
+      const xOverlap = charRight > pipeLeft && charLeft < sweptRight;
 
       if (xOverlap) {
         if (charTop < gapStart || charBottom > gapEnd) return true;
-      }
-
-      if (!xOverlap) {
-        const shaftHalfW = POLE_SHAFT_W / 2;
-        const shaftLeft = o.x - shaftHalfW;
-        const shaftRight = o.x + shaftHalfW;
-        if (charRight > shaftLeft && charLeft < shaftRight) {
-          if (charTop < gapStart - POLE_CAP_H || charBottom > gapEnd + POLE_CAP_H) return true;
-        }
-      }
-
-      const sweptLeft = o.x - capHalfW + tinyInset;
-      const prevPipeRight = pipeRight + GAME_CONFIG.OBSTACLE_SPEED * levelRef.current.fastSpeedMult * (speedMultiplier.current + Math.min(tapSpeedBonus.current, GAME_CONFIG.MAX_TAP_SPEED_BONUS));
-      if (charRight > sweptLeft && charLeft < prevPipeRight) {
-        if (charRight <= pipeLeft || charLeft >= pipeRight) {
-          if (charTop < gapStart || charBottom > gapEnd) return true;
-        }
       }
     }
     return false;
