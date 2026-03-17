@@ -382,11 +382,11 @@ export default function GameScreen() {
     const gapCenterMax = floorY - OBSTACLE_TUNING.GAP_CENTER_MAX_PADDING - gapSize / 2;
     const safeMin = Math.min(gapCenterMin, gapCenterMax);
     const safeMax = Math.max(gapCenterMin, gapCenterMax);
-    const shiftFactor = 0.40 + (lvl.level - 1) * 0.05;
+    const shiftFactor = 0.36 + (lvl.level - 1) * 0.045;
     const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.7);
     const rawTarget = lastGapY.current + (Math.random() - 0.5) * maxShift * 2;
     const midY = (safeMin + safeMax) / 2;
-    const pullToCenter = 0.15;
+    const pullToCenter = 0.20;
     const targetY = rawTarget + (midY - rawTarget) * pullToCenter;
     const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
     lastGapY.current = gapCenter;
@@ -406,7 +406,7 @@ export default function GameScreen() {
 
   const checkCollision = useCallback((cy: number, obs: Obstacle[]): boolean => {
     const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
-    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.97;
+    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.90;
     const cx = getCharX();
     const halfHitX = hitSizeX / 2;
     const halfHitY = hitSizeY / 2;
@@ -570,8 +570,8 @@ export default function GameScreen() {
     const velSign = velocity.current < 0 ? -1 : 1;
     const velMag = Math.abs(velocity.current);
     const gravCurve = velocity.current < 0
-      ? gravBase * (0.88 + 0.12 * Math.min(1, velMag / 5))
-      : gravBase * (1.0 + 0.04 * Math.min(1, velMag / 4));
+      ? gravBase * (0.85 + 0.12 * Math.min(1, velMag / 5.5))
+      : gravBase * (0.96 + 0.04 * Math.min(1, velMag / 4.5));
     velocity.current += gravCurve;
     velocity.current *= mp.fallDamping;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
@@ -579,12 +579,12 @@ export default function GameScreen() {
     }
 
     if (velocity.current < 0) {
-      const riseEase = 1.0 - Math.min(0.32, Math.abs(velocity.current) * 0.014);
+      const riseEase = 1.0 - Math.min(0.34, Math.abs(velocity.current) * 0.015);
       const riseSpeed = velocity.current * riseEase * (1.0 + (1.0 - mp.riseSmoothing) * 0.18);
       characterY.current += riseSpeed;
     } else {
-      const fallEase = 1.0 - Math.max(0, (velocity.current - 2.5) * 0.022);
-      characterY.current += velocity.current * Math.max(0.87, fallEase);
+      const fallEase = 1.0 - Math.max(0, (velocity.current - 2.2) * 0.028);
+      characterY.current += velocity.current * Math.max(0.85, fallEase);
     }
 
     const minY = safeTop + 2;
