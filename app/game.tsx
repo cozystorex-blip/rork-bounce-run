@@ -377,14 +377,12 @@ export default function GameScreen() {
     const hitSize = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
     const cx = getCharX();
     const insetX = scale(OBSTACLE_TUNING.HITBOX_INSET_X);
-    const insetY = scale(OBSTACLE_TUNING.HITBOX_INSET_Y);
-    const forgive = scale(OBSTACLE_TUNING.PLAYER_FORGIVENESS);
     const halfHit = hitSize / 2;
     const centerY = cy + GAME_CONFIG.CHARACTER_SIZE / 2;
-    const charLeft = cx - halfHit + forgive;
-    const charRight = cx + halfHit - forgive;
-    const charTop = centerY - halfHit + forgive;
-    const charBottom = centerY + halfHit - forgive;
+    const charLeft = cx - halfHit;
+    const charRight = cx + halfHit;
+    const charTop = centerY - halfHit;
+    const charBottom = centerY + halfHit;
 
     const ceilingY = safeTop;
     const floorY = SCREEN_HEIGHT - GROUND_HEIGHT;
@@ -404,8 +402,8 @@ export default function GameScreen() {
       const pipeRight = o.x + capHalfW - insetX;
 
       if (charRight > pipeLeft && charLeft < pipeRight) {
-        if (charTop < gapStart - insetY) return true;
-        if (charBottom > gapEnd + insetY) return true;
+        if (charTop < gapStart) return true;
+        if (charBottom > gapEnd) return true;
       }
     }
     return false;
