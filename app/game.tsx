@@ -598,7 +598,7 @@ export default function GameScreen() {
 
     tapSpeedBonus.current *= GAME_CONFIG.TAP_SPEED_DECAY;
     if (tapSpeedBonus.current < 0.001) tapSpeedBonus.current = 0;
-    const clampedTapBonus = Math.min(tapSpeedBonus.current, GAME_CONFIG.MAX_TAP_SPEED_BONUS * 0.8);
+    const clampedTapBonus = Math.min(tapSpeedBonus.current, GAME_CONFIG.MAX_TAP_SPEED_BONUS);
     const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus) * lvl.fastSpeedMult;
     const cx = getCharX();
 
