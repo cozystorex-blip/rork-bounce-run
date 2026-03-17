@@ -9,12 +9,11 @@ import {
   ScrollView,
   NativeSyntheticEvent,
   NativeScrollEvent,
-  Share,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
-import { Trophy, Ruler, Star, Play, ChevronRight, CupSoda, TreePine, Coins } from 'lucide-react-native';
+import { Trophy, Ruler, Star, Play, ChevronRight, TreePine } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GameColors } from '@/constants/colors';
 import { useGameState, useFormattedDistance } from '@/providers/GameStateProvider';
@@ -38,7 +37,6 @@ export default function HomeScreen() {
   const formattedDistance = useFormattedDistance(stats.totalDistance);
   const [currentPage, setCurrentPage] = useState<number>(0);
   const scrollRef = useRef<ScrollView>(null);
-  const coinScale = useRef(new Animated.Value(1)).current;
 
   const safeTop = Math.max(insets.top, 20);
   const safeBottom = Math.max(insets.bottom, 10);
@@ -54,7 +52,6 @@ export default function HomeScreen() {
   const blobOpacity = useRef(new Animated.Value(0)).current;
   const dotAnim = useRef(new Animated.Value(0)).current;
   const castOpacity = useRef(new Animated.Value(0)).current;
-  const shareScale = useRef(new Animated.Value(1)).current;
   const mapSwitchScale = useRef(new Animated.Value(1)).current;
 
 
@@ -110,29 +107,6 @@ export default function HomeScreen() {
     ]).start();
     selectMap(mapId);
   }, [stats.selectedMap, selectMap, mapSwitchScale]);
-
-  const handleShareScore = useCallback(async () => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Animated.sequence([
-      Animated.timing(shareScale, { toValue: 0.88, duration: 80, useNativeDriver: true }),
-      Animated.spring(shareScale, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
-    ]).start();
-    const message = `I scored ${stats.bestScore} in BlobDash! Total distance: ${formattedDistance}. Can you beat me? 🟡`;
-    try {
-      if (Platform.OS === 'web') {
-        if (typeof navigator !== 'undefined' && navigator.share) {
-          await navigator.share({ text: message, title: 'BlobDash Score' });
-        } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-          await navigator.clipboard.writeText(message);
-          console.log('Score copied to clipboard');
-        }
-      } else {
-        await Share.share({ message, title: 'BlobDash Score' });
-      }
-    } catch (e) {
-      console.log('Share cancelled or failed', e);
-    }
-  }, [stats.bestScore, formattedDistance, shareScale]);
 
   useEffect(() => {
     Animated.sequence([
@@ -322,51 +296,7 @@ export default function HomeScreen() {
               </Animated.View>
             </TouchableOpacity>
 
-            <View style={styles.topBarRight}>
-              <TouchableOpacity
-                onPress={() => {
-                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  Animated.sequence([
-                    Animated.timing(coinScale, { toValue: 0.9, duration: 60, useNativeDriver: true }),
-                    Animated.spring(coinScale, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
-                  ]).start();
-                  scrollRef.current?.scrollTo({ x: SCREEN_WIDTH, animated: true });
-                }}
-                activeOpacity={0.8}
-                testID="coin-shop-button"
-              >
-                <Animated.View
-                  style={[
-                    styles.coinWidget,
-                    {
-                      opacity: pillsOpacity,
-                      transform: [{ scale: coinScale }],
-                    },
-                  ]}
-                >
-                  <Coins size={moderateScale(15)} color="#D4920B" />
-                  <Text style={styles.coinWidgetText}>{stats.coins}</Text>
-                </Animated.View>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleShareScore}
-                activeOpacity={0.8}
-                testID="share-button"
-              >
-                <Animated.View
-                  style={[
-                    styles.shareWidget,
-                    {
-                      opacity: pillsOpacity,
-                      transform: [{ scale: shareScale }],
-                    },
-                  ]}
-                >
-                  <CupSoda size={moderateScale(16)} color="#2D2D2D" />
-                  <Text style={styles.shareWidgetText}>Share</Text>
-                </Animated.View>
-              </TouchableOpacity>
-            </View>
+
           </View>
 
           <View style={[styles.content, { paddingBottom: groundOffset + safeBottom + verticalScale(40) }]}>
@@ -516,6 +446,13 @@ export default function HomeScreen() {
                           </>
                         )}
                         {isActive && <View style={styles.mapPreviewShine} />}
+                        <View style={styles.mapBlobWrap}>
+                          <BlobSkin
+                            skin={SKINS.find(s => s.mapAffinity === theme.id && (!s.locked || stats.unlockedSkins.includes(s.id))) ?? SKINS[0]}
+                            size={scale(22)}
+                            animated={false}
+                          />
+                        </View>
                       </View>
                       <View style={[styles.mapCardInfo, isActive && styles.mapCardInfoActive]}>
                         <View style={styles.mapCardInfoLeft}>
@@ -1000,58 +937,16 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  shareWidget: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,210,50,0.95)',
-    paddingHorizontal: scale(12),
-    paddingVertical: verticalScale(7),
-    borderRadius: scale(18),
-    borderWidth: scale(2.5),
-    borderColor: 'rgba(26,26,46,0.8)',
-    gap: scale(5),
-    shadowColor: 'rgba(180,120,0,0.4)',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 1,
-    shadowRadius: 10,
-    elevation: 6,
-    overflow: 'hidden',
-    marginRight: scale(2),
-  },
-
-  shareWidgetText: {
-    fontSize: moderateScale(13),
-    fontWeight: '900' as const,
-    color: '#1A1A2E',
-    letterSpacing: 0.5,
-  },
-  topBarRight: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: scale(6),
-  },
-  coinWidget: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    backgroundColor: '#FFF8E0',
-    paddingHorizontal: scale(10),
-    paddingVertical: verticalScale(7),
-    borderRadius: scale(18),
-    borderWidth: scale(2.5),
-    borderColor: 'rgba(212,146,11,0.5)',
-    gap: scale(4),
-    shadowColor: 'rgba(180,120,0,0.3)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 5,
-    overflow: 'hidden' as const,
-  },
-  coinWidgetText: {
-    fontSize: moderateScale(13),
-    fontWeight: '900' as const,
-    color: '#D4920B',
-    letterSpacing: 0.3,
+  mapBlobWrap: {
+    position: 'absolute',
+    bottom: '32%',
+    right: scale(8),
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   mapSelectorWrap: {
     width: '100%',

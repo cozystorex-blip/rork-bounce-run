@@ -9,8 +9,10 @@ import {
   Animated,
   ScrollView,
   Alert,
+  Share,
+  Platform,
 } from 'react-native';
-import { X, Coins, ShoppingBag, RotateCcw, Sparkles, Check } from 'lucide-react-native';
+import { X, Coins, ShoppingBag, RotateCcw, Sparkles, Check, Share2 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
@@ -121,6 +123,25 @@ export default function ShopModal({ visible, onClose }: ShopModalProps) {
       Alert.alert('Error', 'Failed to restore purchases. Please try again.');
     },
   });
+
+  const handleShareScore = useCallback(async () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const message = `I scored ${stats.bestScore} in BlobDash! Can you beat me? 🟡`;
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          await navigator.share({ text: message, title: 'BlobDash Score' });
+        } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(message);
+          console.log('Score copied to clipboard');
+        }
+      } else {
+        await Share.share({ message, title: 'BlobDash Score' });
+      }
+    } catch (e) {
+      console.log('Share cancelled or failed', e);
+    }
+  }, [stats.bestScore]);
 
   const handleClose = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -244,25 +265,37 @@ export default function ShopModal({ visible, onClose }: ShopModalProps) {
             })}
           </ScrollView>
 
-          <TouchableOpacity
-            style={styles.restoreBtn}
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              restoreMutation.mutate();
-            }}
-            disabled={restoreMutation.isPending || !purchaseAvailable}
-            activeOpacity={0.7}
-            testID="restore-purchases"
-          >
-            {restoreMutation.isPending ? (
-              <ActivityIndicator size="small" color="#888" />
-            ) : (
-              <>
-                <RotateCcw size={moderateScale(14)} color="#888" />
-                <Text style={styles.restoreText}>Restore Purchases</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={styles.bottomActions}>
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={handleShareScore}
+              activeOpacity={0.7}
+              testID="share-button"
+            >
+              <Share2 size={moderateScale(14)} color="#D4920B" />
+              <Text style={styles.shareBtnText}>Share Score</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.restoreBtn}
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                restoreMutation.mutate();
+              }}
+              disabled={restoreMutation.isPending || !purchaseAvailable}
+              activeOpacity={0.7}
+              testID="restore-purchases"
+            >
+              {restoreMutation.isPending ? (
+                <ActivityIndicator size="small" color="#888" />
+              ) : (
+                <>
+                  <RotateCcw size={moderateScale(14)} color="#888" />
+                  <Text style={styles.restoreText}>Restore Purchases</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -464,6 +497,31 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
+  },
+  bottomActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: scale(16),
+    marginTop: verticalScale(4),
+    paddingVertical: verticalScale(8),
+  },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: scale(6),
+    backgroundColor: '#FFF8E0',
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(10),
+    borderRadius: scale(16),
+    borderWidth: scale(1.5),
+    borderColor: 'rgba(212,146,11,0.25)',
+  },
+  shareBtnText: {
+    fontSize: moderateScale(13),
+    fontWeight: '700' as const,
+    color: '#D4920B',
   },
   restoreBtn: {
     flexDirection: 'row',
