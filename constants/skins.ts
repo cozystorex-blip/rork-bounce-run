@@ -18,19 +18,11 @@ export interface SkinData {
   personality: string;
   bodyColor: string;
   bodyDark: string;
-  bellyColor?: string;
   eyeStyle: 'normal' | 'angry' | 'goggles' | 'sparkle' | 'intense';
-  eyeColor?: string;
   mouthStyle: 'smirk' | 'grin' | 'tongue' | 'cute' | 'fierce';
-  earStyle: 'cat' | 'bear' | 'bunny' | 'fox' | 'pointy';
-  earColor?: string;
-  earInnerColor?: string;
-  noseColor?: string;
-  tailStyle?: 'round' | 'fluffy' | 'long' | 'curly';
-  tailColor?: string;
   hatColor: string;
   hatBand: string;
-  hatStyle: 'builder' | 'hood' | 'spiky' | 'bow' | 'ninja' | 'none';
+  hatStyle: 'builder' | 'hood' | 'spiky' | 'bow' | 'ninja';
   accentColor: string;
   cheekColor: string;
   locked: boolean;
@@ -47,7 +39,6 @@ export interface SkinData {
   maskColor?: string;
   chestLetter?: string;
   chestLetterBg?: string;
-  whiskers?: boolean;
   mapAffinity: string;
   movement: MovementProfile;
 }
@@ -56,19 +47,11 @@ export const SKINS: SkinData[] = [
   {
     id: 'hero',
     name: 'Blaze',
-    personality: 'The fearless fox',
+    personality: 'The fearless one',
     bodyColor: '#FF6B35',
     bodyDark: '#D4501A',
-    bellyColor: '#FFE4CC',
     eyeStyle: 'intense',
-    eyeColor: '#2D1A00',
     mouthStyle: 'grin',
-    earStyle: 'fox',
-    earColor: '#FF6B35',
-    earInnerColor: '#FFD4AA',
-    noseColor: '#1A1A2E',
-    tailStyle: 'fluffy',
-    tailColor: '#FF8855',
     hatColor: '#1A1A2E',
     hatBand: '#FF4444',
     hatStyle: 'ninja',
@@ -81,7 +64,11 @@ export const SKINS: SkinData[] = [
     speechLine: "Let's gooo!",
     price: 0,
     armColor: '#E05A28',
-    whiskers: true,
+    hasChain: true,
+    hasCape: true,
+    capeColor: '#FF4444',
+    chestLetter: '🔥',
+    chestLetterBg: '#FFD84A',
     mapAffinity: 'park',
     movement: {
       flapForceMultiplier: 1.18,
@@ -100,19 +87,11 @@ export const SKINS: SkinData[] = [
   {
     id: 'shadow',
     name: 'Shady',
-    personality: 'The sneaky cat',
+    personality: 'The mischievous one',
     bodyColor: '#8B6BBF',
     bodyDark: '#6A4E9A',
-    bellyColor: '#D4C0F0',
     eyeStyle: 'angry',
-    eyeColor: '#44FF88',
     mouthStyle: 'smirk',
-    earStyle: 'cat',
-    earColor: '#8B6BBF',
-    earInnerColor: '#C4A8F0',
-    noseColor: '#5A3D80',
-    tailStyle: 'long',
-    tailColor: '#7A5BAD',
     hatColor: '#5A3D80',
     hatBand: '#422D66',
     hatStyle: 'hood',
@@ -125,7 +104,6 @@ export const SKINS: SkinData[] = [
     speechLine: 'Hehe, catch me!',
     price: 0,
     armColor: '#7A5BAD',
-    whiskers: true,
     mapAffinity: 'gotham',
     movement: {
       flapForceMultiplier: 1.02,
@@ -144,21 +122,14 @@ export const SKINS: SkinData[] = [
   {
     id: 'tech',
     name: 'Gizmo',
-    personality: 'The curious bear',
+    personality: 'The happy nerd',
     bodyColor: '#55BB33',
     bodyDark: '#44991E',
-    bellyColor: '#D4F0C0',
     eyeStyle: 'sparkle',
     mouthStyle: 'tongue',
-    earStyle: 'bear',
-    earColor: '#55BB33',
-    earInnerColor: '#99EE77',
-    noseColor: '#2D5A1A',
-    tailStyle: 'round',
-    tailColor: '#44991E',
     hatColor: '#99AABB',
     hatBand: '#778899',
-    hatStyle: 'none',
+    hatStyle: 'spiky',
     accentColor: '#77DD55',
     cheekColor: '#99EE77',
     locked: false,
@@ -187,18 +158,11 @@ export const SKINS: SkinData[] = [
   {
     id: 'aqua',
     name: 'Bubbles',
-    personality: 'The bubbly bunny',
+    personality: 'The bubbly one',
     bodyColor: '#FF88B8',
     bodyDark: '#DD5588',
-    bellyColor: '#FFE0EC',
     eyeStyle: 'sparkle',
-    mouthStyle: 'cute',
-    earStyle: 'bunny',
-    earColor: '#FF88B8',
-    earInnerColor: '#FFD0E4',
-    noseColor: '#EE5588',
-    tailStyle: 'round',
-    tailColor: '#FFFFFF',
+    mouthStyle: 'tongue',
     hatColor: '#CC55EE',
     hatBand: '#AA33CC',
     hatStyle: 'bow',
@@ -211,6 +175,7 @@ export const SKINS: SkinData[] = [
     speechLine: 'Yayyy! So fun!',
     price: 150,
     armColor: '#EE77AA',
+    hasGlasses: true,
     mapAffinity: 'park',
     movement: {
       flapForceMultiplier: 0.88,
@@ -229,22 +194,14 @@ export const SKINS: SkinData[] = [
   {
     id: 'star',
     name: 'Bolt',
-    personality: 'The super wolf',
+    personality: 'The super hero',
     bodyColor: '#4499EE',
     bodyDark: '#2277CC',
-    bellyColor: '#C8E0FF',
     eyeStyle: 'intense',
-    eyeColor: '#FFD84A',
-    mouthStyle: 'fierce',
-    earStyle: 'pointy',
-    earColor: '#4499EE',
-    earInnerColor: '#88BBFF',
-    noseColor: '#1A1A2E',
-    tailStyle: 'fluffy',
-    tailColor: '#3388DD',
+    mouthStyle: 'grin',
     hatColor: '#EE3333',
     hatBand: '#CC1111',
-    hatStyle: 'none',
+    hatStyle: 'ninja',
     accentColor: '#FFD84A',
     cheekColor: '#88BBFF',
     locked: true,

@@ -20,7 +20,6 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
   const bobAnim = useRef(new Animated.Value(0)).current;
   const squishAnim = useRef(new Animated.Value(1)).current;
   const blinkAnim = useRef(new Animated.Value(1)).current;
-  const earWiggle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!animated) return;
@@ -46,133 +45,33 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
         Animated.timing(blinkAnim, { toValue: 1, duration: 55, useNativeDriver: true }),
       ])
     );
-    const earLoop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(3500),
-        Animated.timing(earWiggle, { toValue: 1, duration: 120, useNativeDriver: true }),
-        Animated.timing(earWiggle, { toValue: -0.5, duration: 100, useNativeDriver: true }),
-        Animated.timing(earWiggle, { toValue: 0, duration: 100, useNativeDriver: true }),
-      ])
-    );
     bobLoop.start();
     squishLoop.start();
     blinkLoop.start();
-    earLoop.start();
-    return () => { bobLoop.stop(); squishLoop.stop(); blinkLoop.stop(); earLoop.stop(); };
-  }, [bobAnim, squishAnim, blinkAnim, earWiggle, animated]);
+    return () => { bobLoop.stop(); squishLoop.stop(); blinkLoop.stop(); };
+  }, [bobAnim, squishAnim, blinkAnim, animated]);
 
   const s = size;
   const bodyW = s * 1.25;
-  const bodyH = s * 1.1;
-  const eyeW = Math.round(s * 0.32);
-  const eyeH = Math.round(s * 0.36);
-  const pupilSize = Math.round(s * 0.2);
-  const pupilHL = Math.round(s * 0.09);
-  const outline = Math.round(Math.max(2.5, s * 0.055));
-  const cheekSize = s * 0.16;
+  const bodyH = s * 1.0;
+  const eyeW = Math.round(s * 0.36);
+  const eyeH = Math.round(s * 0.4);
+  const pupilSize = Math.round(s * 0.24);
+  const pupilHL = Math.round(s * 0.1);
+  const outline = Math.round(Math.max(3, s * 0.065));
+  const cheekSize = s * 0.13;
   const cheekColor = skin.cheekColor ?? 'rgba(255,150,150,0.35)';
-  const armW = s * 0.18;
-  const armH = s * 0.14;
+  const armW = s * 0.16;
+  const armH = s * 0.13;
   const armColor = skin.armColor ?? adjustColor(skin.bodyColor, -25);
-  const noseColor = skin.noseColor ?? '#1A1A2E';
-  const bellyColor = skin.bellyColor ?? adjustColor(skin.bodyColor, 40);
-  const earColor = skin.earColor ?? skin.bodyColor;
-  const earInner = skin.earInnerColor ?? adjustColor(skin.bodyColor, 50);
-  const wrapW = s * 1.5 + 14;
-  const wrapH = s * 1.45 + 16;
-
-  const earWiggleRotL = earWiggle.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: ['8deg', '0deg', '-12deg'],
-  });
-  const earWiggleRotR = earWiggle.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: ['-8deg', '0deg', '12deg'],
-  });
-
-  const renderEars = () => {
-    const EarWrapper = animated ? Animated.View : View;
-
-    if (skin.earStyle === 'cat') {
-      const earW = s * 0.26;
-      const earH = s * 0.28;
-      return (
-        <>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.08, left: (wrapW - bodyW) / 2 + bodyW * 0.1, backgroundColor: earColor, borderRadius: earW * 0.42, borderTopLeftRadius: earW * 0.3, borderTopRightRadius: earW * 0.55, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-25deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.5, top: earH * 0.2, left: earW * 0.25, backgroundColor: earInner, borderRadius: earW * 0.25 }]} />
-          </EarWrapper>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.08, right: (wrapW - bodyW) / 2 + bodyW * 0.1, backgroundColor: earColor, borderRadius: earW * 0.42, borderTopLeftRadius: earW * 0.55, borderTopRightRadius: earW * 0.3, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '25deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.5, top: earH * 0.2, right: earW * 0.25, backgroundColor: earInner, borderRadius: earW * 0.25 }]} />
-          </EarWrapper>
-        </>
-      );
-    }
-
-    if (skin.earStyle === 'bear') {
-      const earR = s * 0.18;
-      return (
-        <>
-          <EarWrapper style={[ls.ear, { width: earR * 2, height: earR * 2, top: earR * 0.15, left: (wrapW - bodyW) / 2 + bodyW * 0.08, backgroundColor: earColor, borderRadius: earR, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-18deg' }] }]}>
-            <View style={[ls.earInner, { width: earR * 1.1, height: earR * 1.1, borderRadius: earR * 0.55, backgroundColor: earInner, top: earR * 0.35, left: earR * 0.45 }]} />
-          </EarWrapper>
-          <EarWrapper style={[ls.ear, { width: earR * 2, height: earR * 2, top: earR * 0.15, right: (wrapW - bodyW) / 2 + bodyW * 0.08, backgroundColor: earColor, borderRadius: earR, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '18deg' }] }]}>
-            <View style={[ls.earInner, { width: earR * 1.1, height: earR * 1.1, borderRadius: earR * 0.55, backgroundColor: earInner, top: earR * 0.35, right: earR * 0.45 }]} />
-          </EarWrapper>
-        </>
-      );
-    }
-
-    if (skin.earStyle === 'bunny') {
-      const earW = s * 0.18;
-      const earH = s * 0.42;
-      return (
-        <>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.32, left: (wrapW - bodyW) / 2 + bodyW * 0.2, backgroundColor: earColor, borderRadius: earW / 2, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-18deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.55, borderRadius: earW * 0.25, backgroundColor: earInner, top: earH * 0.14, left: earW * 0.25 }]} />
-          </EarWrapper>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.32, right: (wrapW - bodyW) / 2 + bodyW * 0.2, backgroundColor: earColor, borderRadius: earW / 2, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '18deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.55, borderRadius: earW * 0.25, backgroundColor: earInner, top: earH * 0.14, right: earW * 0.25 }]} />
-          </EarWrapper>
-        </>
-      );
-    }
-
-    if (skin.earStyle === 'fox') {
-      const earW = s * 0.27;
-      const earH = s * 0.3;
-      return (
-        <>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.1, left: (wrapW - bodyW) / 2 + bodyW * 0.08, backgroundColor: earColor, borderRadius: earW * 0.4, borderTopLeftRadius: earW * 0.3, borderTopRightRadius: earW * 0.52, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-24deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.48, height: earH * 0.48, top: earH * 0.2, left: earW * 0.26, backgroundColor: earInner, borderRadius: earW * 0.24 }]} />
-          </EarWrapper>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.1, right: (wrapW - bodyW) / 2 + bodyW * 0.08, backgroundColor: earColor, borderRadius: earW * 0.4, borderTopRightRadius: earW * 0.3, borderTopLeftRadius: earW * 0.52, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '24deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.48, height: earH * 0.48, top: earH * 0.2, right: earW * 0.26, backgroundColor: earInner, borderRadius: earW * 0.24 }]} />
-          </EarWrapper>
-        </>
-      );
-    }
-
-    if (skin.earStyle === 'pointy') {
-      const earW = s * 0.24;
-      const earH = s * 0.32;
-      return (
-        <>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.05, left: (wrapW - bodyW) / 2 + bodyW * 0.1, backgroundColor: earColor, borderRadius: earW * 0.38, borderTopLeftRadius: earW * 0.2, borderTopRightRadius: earW * 0.55, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-22deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.44, height: earH * 0.44, top: earH * 0.22, left: earW * 0.28, backgroundColor: earInner, borderRadius: earW * 0.22 }]} />
-          </EarWrapper>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.05, right: (wrapW - bodyW) / 2 + bodyW * 0.1, backgroundColor: earColor, borderRadius: earW * 0.38, borderTopRightRadius: earW * 0.2, borderTopLeftRadius: earW * 0.55, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '22deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.44, height: earH * 0.44, top: earH * 0.22, right: earW * 0.28, backgroundColor: earInner, borderRadius: earW * 0.22 }]} />
-          </EarWrapper>
-        </>
-      );
-    }
-
-    return null;
-  };
+  const wrapW = s * 1.25 + 12;
+  const wrapH = s + 14;
 
   const renderEyes = () => {
-    const eyeRotL = skin.eyeStyle === 'angry' ? '-8deg' : skin.eyeStyle === 'intense' ? '-5deg' : '-3deg';
-    const eyeRotR = skin.eyeStyle === 'angry' ? '8deg' : skin.eyeStyle === 'intense' ? '5deg' : '3deg';
+    const eyeRotL = skin.eyeStyle === 'angry' ? '-8deg' : skin.eyeStyle === 'intense' ? '-6deg' : '-4deg';
+    const eyeRotR = skin.eyeStyle === 'angry' ? '8deg' : skin.eyeStyle === 'intense' ? '6deg' : '4deg';
+    const browAngleL = skin.eyeStyle === 'angry' ? '16deg' : '12deg';
+    const browAngleR = skin.eyeStyle === 'angry' ? '-16deg' : '-12deg';
 
     const EyeWrapper = animated ? Animated.View : View;
     const eyeTransformL = animated
@@ -182,26 +81,24 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
       ? [{ rotate: eyeRotR }, { scaleY: blinkAnim }]
       : [{ rotate: eyeRotR }];
 
-    const irisColor = skin.eyeColor ?? '#1A1A2E';
-
     return (
       <>
-        <EyeWrapper style={[ls.eyeOuter, { width: eyeW, height: eyeH, borderRadius: Math.round(eyeW / 2), borderWidth: outline, top: bodyH * 0.2, left: bodyW * 0.13, transform: eyeTransformL as any }]}>
-          <View style={[ls.pupil, { width: pupilSize, height: pupilSize, borderRadius: Math.round(pupilSize / 2), backgroundColor: irisColor, marginTop: Math.round(eyeH * 0.18), marginLeft: Math.round(eyeW * 0.15) }]}>
+        <EyeWrapper style={[ls.eyeOuter, { width: eyeW, height: eyeH, borderRadius: Math.round(eyeW / 2), borderWidth: outline, top: bodyH * 0.2, left: bodyW * 0.12, transform: eyeTransformL as any }]}>
+          <View style={[ls.pupil, { width: pupilSize, height: pupilSize, borderRadius: Math.round(pupilSize / 2), marginTop: Math.round(eyeH * 0.13), marginLeft: Math.round(eyeW * 0.12) }]}>
             <View style={[ls.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: Math.round(pupilHL / 2), top: Math.round(pupilSize * 0.08), left: Math.round(pupilSize * 0.08) }]} />
             <View style={[ls.pupilHL2, { width: Math.round(pupilHL * 0.5), height: Math.round(pupilHL * 0.5), borderRadius: Math.round(pupilHL * 0.25), bottom: Math.round(pupilSize * 0.1), right: Math.round(pupilSize * 0.1) }]} />
           </View>
         </EyeWrapper>
-        <EyeWrapper style={[ls.eyeOuter, { width: eyeW, height: eyeH, borderRadius: Math.round(eyeW / 2), borderWidth: outline, top: bodyH * 0.2, right: bodyW * 0.13, transform: eyeTransformR as any }]}>
-          <View style={[ls.pupil, { width: pupilSize, height: pupilSize, borderRadius: Math.round(pupilSize / 2), backgroundColor: irisColor, marginTop: Math.round(eyeH * 0.18), marginLeft: Math.round(eyeW * 0.15) }]}>
+        <EyeWrapper style={[ls.eyeOuter, { width: eyeW, height: eyeH, borderRadius: Math.round(eyeW / 2), borderWidth: outline, top: bodyH * 0.2, right: bodyW * 0.12, transform: eyeTransformR as any }]}>
+          <View style={[ls.pupil, { width: pupilSize, height: pupilSize, borderRadius: Math.round(pupilSize / 2), marginTop: Math.round(eyeH * 0.13), marginLeft: Math.round(eyeW * 0.12) }]}>
             <View style={[ls.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: Math.round(pupilHL / 2), top: Math.round(pupilSize * 0.08), left: Math.round(pupilSize * 0.08) }]} />
             <View style={[ls.pupilHL2, { width: Math.round(pupilHL * 0.5), height: Math.round(pupilHL * 0.5), borderRadius: Math.round(pupilHL * 0.25), bottom: Math.round(pupilSize * 0.1), right: Math.round(pupilSize * 0.1) }]} />
           </View>
         </EyeWrapper>
         {(skin.eyeStyle === 'angry' || skin.eyeStyle === 'intense') && (
           <>
-            <View style={[ls.brow, { top: bodyH * 0.14, left: bodyW * 0.09, width: eyeW * 0.95, height: outline * 1.8, borderRadius: outline, transform: [{ rotate: skin.eyeStyle === 'angry' ? '16deg' : '10deg' }] }]} />
-            <View style={[ls.brow, { top: bodyH * 0.14, right: bodyW * 0.09, width: eyeW * 0.95, height: outline * 1.8, borderRadius: outline, transform: [{ rotate: skin.eyeStyle === 'angry' ? '-16deg' : '-10deg' }] }]} />
+            <View style={[ls.brow, { top: bodyH * 0.14, left: bodyW * 0.08, width: eyeW * 1.0, height: outline * 2, borderRadius: outline, transform: [{ rotate: browAngleL }] }]} />
+            <View style={[ls.brow, { top: bodyH * 0.14, right: bodyW * 0.08, width: eyeW * 1.0, height: outline * 2, borderRadius: outline, transform: [{ rotate: browAngleR }] }]} />
           </>
         )}
         {skin.hasGlasses && renderGlasses()}
@@ -217,37 +114,6 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
         <View style={[ls.glassFrame, { width: glassSize, height: glassSize * 0.9, borderRadius: glassSize / 2, borderWidth: outline * 0.85, top: bodyH * 0.17, left: bodyW * 0.09 }]} />
         <View style={[ls.glassFrame, { width: glassSize, height: glassSize * 0.9, borderRadius: glassSize / 2, borderWidth: outline * 0.85, top: bodyH * 0.17, right: bodyW * 0.09 }]} />
         <View style={[ls.glassBridge, { width: bridgeW, height: outline * 1.1, top: bodyH * 0.3, left: bodyW * 0.5 - bridgeW / 2 }]} />
-      </>
-    );
-  };
-
-  const renderNose = () => {
-    const noseW = s * 0.12;
-    const noseH = s * 0.09;
-    return (
-      <View style={[ls.nose, {
-        width: noseW,
-        height: noseH,
-        borderRadius: noseW / 2,
-        backgroundColor: noseColor,
-        bottom: bodyH * 0.3,
-        left: bodyW * 0.5 - noseW / 2,
-      }]}>
-        <View style={[ls.noseShine, { width: noseW * 0.35, height: noseH * 0.4, borderRadius: noseW * 0.18, top: noseH * 0.12, left: noseW * 0.18 }]} />
-      </View>
-    );
-  };
-
-  const renderWhiskers = () => {
-    if (!skin.whiskers) return null;
-    const wLen = s * 0.18;
-    const wThick = Math.max(1, outline * 0.4);
-    return (
-      <>
-        <View style={[ls.whisker, { width: wLen, height: wThick, bottom: bodyH * 0.32, left: bodyW * 0.02, transform: [{ rotate: '-5deg' }] }]} />
-        <View style={[ls.whisker, { width: wLen, height: wThick, bottom: bodyH * 0.28, left: bodyW * 0.01, transform: [{ rotate: '8deg' }] }]} />
-        <View style={[ls.whisker, { width: wLen, height: wThick, bottom: bodyH * 0.32, right: bodyW * 0.02, transform: [{ rotate: '5deg' }] }]} />
-        <View style={[ls.whisker, { width: wLen, height: wThick, bottom: bodyH * 0.28, right: bodyW * 0.01, transform: [{ rotate: '-8deg' }] }]} />
       </>
     );
   };
@@ -292,26 +158,11 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
     );
   };
 
-  const renderBelly = () => {
-    const bellyW = bodyW * 0.52;
-    const bellyH = bodyH * 0.42;
-    return (
-      <View style={[ls.belly, {
-        width: bellyW,
-        height: bellyH,
-        borderRadius: bellyW / 2,
-        backgroundColor: bellyColor,
-        bottom: bodyH * 0.08,
-        left: bodyW * 0.5 - bellyW / 2,
-      }]} />
-    );
-  };
-
   const renderCheeks = () => {
     return (
       <>
-        <View style={[ls.cheek, { width: cheekSize, height: cheekSize * 0.5, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, left: bodyW * 0.04, backgroundColor: cheekColor }]} />
-        <View style={[ls.cheek, { width: cheekSize, height: cheekSize * 0.5, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, right: bodyW * 0.04, backgroundColor: cheekColor }]} />
+        <View style={[ls.cheek, { width: cheekSize, height: cheekSize * 0.5, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, left: bodyW * 0.05, backgroundColor: cheekColor }]} />
+        <View style={[ls.cheek, { width: cheekSize, height: cheekSize * 0.5, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, right: bodyW * 0.05, backgroundColor: cheekColor }]} />
       </>
     );
   };
@@ -322,69 +173,30 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
         <View
           style={[ls.arm, {
             width: armW, height: armH, borderRadius: armW / 2,
-            borderWidth: outline * 0.75, bottom: bodyH * 0.2,
-            left: (wrapW - bodyW) / 2 - armW * 0.15,
-            backgroundColor: armColor, transform: [{ rotate: '-14deg' }],
+            borderWidth: outline * 0.8, bottom: bodyH * 0.22,
+            left: (wrapW - bodyW) / 2 - armW * 0.18,
+            backgroundColor: armColor, transform: [{ rotate: '-15deg' }],
           }]}
         >
-          <View style={[ls.armHand, { width: armW * 0.48, height: armH * 0.6, borderRadius: armW * 0.24, right: -armW * 0.05, backgroundColor: armColor, borderWidth: outline * 0.55 }]} />
+          <View style={[ls.armHand, { width: armW * 0.5, height: armH * 0.65, borderRadius: armW * 0.25, right: -armW * 0.06, backgroundColor: armColor, borderWidth: outline * 0.6 }]} />
         </View>
         <View
           style={[ls.arm, {
             width: armW, height: armH, borderRadius: armW / 2,
-            borderWidth: outline * 0.75, bottom: bodyH * 0.2,
-            right: (wrapW - bodyW) / 2 - armW * 0.15,
-            backgroundColor: armColor, transform: [{ rotate: '14deg' }],
+            borderWidth: outline * 0.8, bottom: bodyH * 0.22,
+            right: (wrapW - bodyW) / 2 - armW * 0.18,
+            backgroundColor: armColor, transform: [{ rotate: '15deg' }],
           }]}
         >
-          <View style={[ls.armHand, { width: armW * 0.48, height: armH * 0.6, borderRadius: armW * 0.24, left: -armW * 0.05, backgroundColor: armColor, borderWidth: outline * 0.55 }]} />
+          <View style={[ls.armHand, { width: armW * 0.5, height: armH * 0.65, borderRadius: armW * 0.25, left: -armW * 0.06, backgroundColor: armColor, borderWidth: outline * 0.6 }]} />
         </View>
       </>
     );
   };
 
-  const renderTail = () => {
-    if (!skin.tailStyle) return null;
-    const tailColor = skin.tailColor ?? adjustColor(skin.bodyColor, -15);
-
-    if (skin.tailStyle === 'round') {
-      const tailR = s * 0.1;
-      return (
-        <View style={[ls.tail, { width: tailR * 2, height: tailR * 2, borderRadius: tailR, backgroundColor: tailColor, borderWidth: outline * 0.7, right: (wrapW - bodyW) / 2 - tailR * 0.4, bottom: bodyH * 0.15 }]} />
-      );
-    }
-    if (skin.tailStyle === 'fluffy') {
-      const tailW = s * 0.25;
-      const tailH = s * 0.2;
-      return (
-        <View style={[ls.tail, { width: tailW, height: tailH, borderRadius: tailW * 0.4, backgroundColor: tailColor, borderWidth: outline * 0.7, right: (wrapW - bodyW) / 2 - tailW * 0.3, bottom: bodyH * 0.12, transform: [{ rotate: '15deg' }] }]}>
-          <View style={{ position: 'absolute', width: tailW * 0.5, height: tailH * 0.4, borderRadius: tailW * 0.25, backgroundColor: adjustColor(tailColor, 30), top: tailH * 0.15, left: tailW * 0.1 }} />
-        </View>
-      );
-    }
-    if (skin.tailStyle === 'long') {
-      const tailW = s * 0.12;
-      const tailH = s * 0.3;
-      return (
-        <View style={[ls.tail, { width: tailW, height: tailH, borderRadius: tailW / 2, backgroundColor: tailColor, borderWidth: outline * 0.6, right: (wrapW - bodyW) / 2 - tailW * 0.2, bottom: bodyH * 0.05, transform: [{ rotate: '25deg' }] }]}>
-          <View style={{ position: 'absolute', width: tailW * 1.3, height: tailW * 1.3, borderRadius: tailW * 0.65, backgroundColor: tailColor, borderWidth: outline * 0.5, borderColor: '#1A1A2E', bottom: -tailW * 0.2, left: -tailW * 0.3 }} />
-        </View>
-      );
-    }
-    if (skin.tailStyle === 'curly') {
-      const tailR = s * 0.12;
-      return (
-        <View style={[ls.tail, { width: tailR * 2.5, height: tailR * 2, borderRadius: tailR, backgroundColor: tailColor, borderWidth: outline * 0.65, right: (wrapW - bodyW) / 2 - tailR * 0.5, bottom: bodyH * 0.1, transform: [{ rotate: '10deg' }] }]} />
-      );
-    }
-    return null;
-  };
-
   const renderHat = () => {
     const hatH = s * 0.32;
     const hatW = s * 0.8;
-
-    if (skin.hatStyle === 'none') return null;
 
     if (skin.hatStyle === 'hood') {
       return (
@@ -471,7 +283,7 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
   const renderChain = () => {
     if (!skin.hasChain) return null;
     return (
-      <View style={[ls.chain, { bottom: bodyH * 0.3, left: bodyW * 0.35, width: s * 0.26, height: s * 0.035, borderRadius: s * 0.018, borderWidth: outline * 0.35 }]} />
+      <View style={[ls.chain, { bottom: bodyH * 0.32, left: bodyW * 0.34, width: s * 0.28, height: s * 0.04, borderRadius: s * 0.02, borderWidth: outline * 0.4 }]} />
     );
   };
 
@@ -490,8 +302,6 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
       ]}
     >
       {renderCape()}
-      {renderTail()}
-      {renderEars()}
       {renderHat()}
       {renderArms()}
       <View
@@ -500,7 +310,7 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
           {
             width: bodyW,
             height: bodyH,
-            borderRadius: bodyW / 2.05,
+            borderRadius: bodyW / 2.2,
             borderWidth: outline,
             bottom: 0,
             left: (wrapW - bodyW) / 2,
@@ -508,13 +318,10 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
           },
         ]}
       >
-        <View style={[ls.bodyShine, { width: bodyW * 0.2, height: bodyH * 0.08, top: bodyH * 0.06, left: bodyW * 0.12, borderRadius: bodyH * 0.04 }]} />
-        <View style={[ls.bodyShine2, { width: bodyW * 0.1, height: bodyH * 0.04, top: bodyH * 0.17, left: bodyW * 0.1, borderRadius: bodyH * 0.02 }]} />
-        {renderBelly()}
+        <View style={[ls.bodyShine, { width: bodyW * 0.22, height: bodyH * 0.09, top: bodyH * 0.07, left: bodyW * 0.13, borderRadius: bodyH * 0.045 }]} />
+        <View style={[ls.bodyShine2, { width: bodyW * 0.11, height: bodyH * 0.05, top: bodyH * 0.2, left: bodyW * 0.1, borderRadius: bodyH * 0.025 }]} />
         {renderMask()}
         {renderEyes()}
-        {renderNose()}
-        {renderWhiskers()}
         {renderCheeks()}
         {renderMouth()}
         {renderChestLetter()}
@@ -534,9 +341,9 @@ const ls = StyleSheet.create({
     borderColor: '#1A1A2E',
     alignItems: 'center',
     shadowColor: '#1A1A2E',
-    shadowOffset: { width: 1, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
+    shadowOffset: { width: 2, height: 4 },
+    shadowOpacity: 0.38,
+    shadowRadius: 1,
     elevation: 5,
     overflow: 'visible',
   },
@@ -549,37 +356,6 @@ const ls = StyleSheet.create({
     position: 'absolute',
     backgroundColor: 'rgba(255,255,255,0.3)',
     zIndex: 1,
-  },
-  belly: {
-    position: 'absolute',
-    opacity: 0.6,
-  },
-  ear: {
-    position: 'absolute',
-    borderColor: '#1A1A2E',
-    zIndex: -1,
-    overflow: 'hidden',
-  },
-  earInner: {
-    position: 'absolute',
-  },
-  nose: {
-    position: 'absolute',
-    zIndex: 7,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 1,
-    elevation: 2,
-  },
-  noseShine: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255,255,255,0.55)',
-  },
-  whisker: {
-    position: 'absolute',
-    backgroundColor: 'rgba(26,26,46,0.25)',
-    zIndex: 6,
   },
   eyeOuter: {
     position: 'absolute',
@@ -679,12 +455,6 @@ const ls = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     borderColor: '#1A1A2E',
-  },
-  tail: {
-    position: 'absolute',
-    borderColor: '#1A1A2E',
-    zIndex: -2,
-    overflow: 'hidden',
   },
   hood: {
     position: 'absolute',

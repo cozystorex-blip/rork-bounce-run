@@ -378,6 +378,7 @@ export default function GameScreen() {
     const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
     const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.97;
     const cx = getCharX();
+    const insetX = scale(OBSTACLE_TUNING.HITBOX_INSET_X);
     const halfHitX = hitSizeX / 2;
     const halfHitY = hitSizeY / 2;
     const centerY = cy + GAME_CONFIG.CHARACTER_SIZE / 2;
@@ -400,18 +401,21 @@ export default function GameScreen() {
       const gapStart = o.gapY - gap / 2;
       const gapEnd = o.gapY + gap / 2;
 
-      const pipeLeft = o.x - capHalfW;
-      const pipeRight = o.x + capHalfW;
+      const pipeLeft = o.x - capHalfW + insetX;
+      const pipeRight = o.x + capHalfW - insetX;
 
-      const lvl = levelRef.current;
-      const clampedTapBonus = Math.min(tapSpeedBonus.current, GAME_CONFIG.MAX_TAP_SPEED_BONUS);
-      const frameSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus) * lvl.fastSpeedMult;
-      const sweptRight = pipeRight + frameSpeed;
+      if (charRight > pipeLeft && charLeft < pipeRight) {
+        if (charTop < gapStart) return true;
+        if (charBottom > gapEnd) return true;
+      }
 
-      const xOverlap = charRight > pipeLeft && charLeft < sweptRight;
+      const shaftHalfW = POLE_SHAFT_W / 2;
+      const shaftLeft = o.x - shaftHalfW;
+      const shaftRight = o.x + shaftHalfW;
 
-      if (xOverlap) {
-        if (charTop < gapStart || charBottom > gapEnd) return true;
+      if (charRight > shaftLeft && charLeft < shaftRight) {
+        if (charTop < gapStart - POLE_CAP_H) return true;
+        if (charBottom > gapEnd + POLE_CAP_H) return true;
       }
     }
     return false;
