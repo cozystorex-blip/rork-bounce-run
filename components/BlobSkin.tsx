@@ -51,11 +51,11 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
   const s = size;
   const bodyW = s * 1.3;
   const bodyH = s * 1.05;
-  const eyeW = s * 0.34;
-  const eyeH = s * 0.38;
-  const pupilSize = s * 0.22;
-  const pupilHL = s * 0.09;
-  const outline = Math.max(3.5, s * 0.075);
+  const eyeW = Math.round(s * 0.38);
+  const eyeH = Math.round(s * 0.42);
+  const pupilSize = Math.round(s * 0.26);
+  const pupilHL = Math.round(s * 0.11);
+  const outline = Math.round(Math.max(3, s * 0.07));
   const cheekSize = s * 0.15;
   const cheekColor = skin.cheekColor ?? 'rgba(255,150,150,0.35)';
   const armW = s * 0.2;
@@ -80,16 +80,16 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
 
     return (
       <>
-        <EyeWrapper style={[ls.eyeOuter, { width: eyeW, height: eyeH, borderRadius: eyeW / 2, borderWidth: outline, top: bodyH * 0.18, left: bodyW * 0.1, transform: eyeTransformL as any }]}>
-          <View style={[ls.pupil, { width: pupilSize, height: pupilSize, borderRadius: pupilSize / 2, marginTop: eyeH * 0.14, marginLeft: eyeW * 0.12 }]}>
-            <View style={[ls.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: pupilHL / 2, top: pupilSize * 0.05, left: pupilSize * 0.06 }]} />
-            <View style={[ls.pupilHL2, { width: pupilHL * 0.5, height: pupilHL * 0.5, borderRadius: pupilHL * 0.25, bottom: pupilSize * 0.08, right: pupilSize * 0.08 }]} />
+        <EyeWrapper style={[ls.eyeOuter, { width: eyeW, height: eyeH, borderRadius: Math.round(eyeW / 2), borderWidth: outline, top: bodyH * 0.18, left: bodyW * 0.1, transform: eyeTransformL as any }]}>
+          <View style={[ls.pupil, { width: pupilSize, height: pupilSize, borderRadius: Math.round(pupilSize / 2), marginTop: Math.round(eyeH * 0.12), marginLeft: Math.round(eyeW * 0.1) }]}>
+            <View style={[ls.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: Math.round(pupilHL / 2), top: Math.round(pupilSize * 0.05), left: Math.round(pupilSize * 0.06) }]} />
+            <View style={[ls.pupilHL2, { width: Math.round(pupilHL * 0.55), height: Math.round(pupilHL * 0.55), borderRadius: Math.round(pupilHL * 0.28), bottom: Math.round(pupilSize * 0.08), right: Math.round(pupilSize * 0.08) }]} />
           </View>
         </EyeWrapper>
-        <EyeWrapper style={[ls.eyeOuter, { width: eyeW, height: eyeH, borderRadius: eyeW / 2, borderWidth: outline, top: bodyH * 0.18, right: bodyW * 0.1, transform: eyeTransformR as any }]}>
-          <View style={[ls.pupil, { width: pupilSize, height: pupilSize, borderRadius: pupilSize / 2, marginTop: eyeH * 0.14, marginLeft: eyeW * 0.12 }]}>
-            <View style={[ls.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: pupilHL / 2, top: pupilSize * 0.05, left: pupilSize * 0.06 }]} />
-            <View style={[ls.pupilHL2, { width: pupilHL * 0.5, height: pupilHL * 0.5, borderRadius: pupilHL * 0.25, bottom: pupilSize * 0.08, right: pupilSize * 0.08 }]} />
+        <EyeWrapper style={[ls.eyeOuter, { width: eyeW, height: eyeH, borderRadius: Math.round(eyeW / 2), borderWidth: outline, top: bodyH * 0.18, right: bodyW * 0.1, transform: eyeTransformR as any }]}>
+          <View style={[ls.pupil, { width: pupilSize, height: pupilSize, borderRadius: Math.round(pupilSize / 2), marginTop: Math.round(eyeH * 0.12), marginLeft: Math.round(eyeW * 0.1) }]}>
+            <View style={[ls.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: Math.round(pupilHL / 2), top: Math.round(pupilSize * 0.05), left: Math.round(pupilSize * 0.06) }]} />
+            <View style={[ls.pupilHL2, { width: Math.round(pupilHL * 0.55), height: Math.round(pupilHL * 0.55), borderRadius: Math.round(pupilHL * 0.28), bottom: Math.round(pupilSize * 0.08), right: Math.round(pupilSize * 0.08) }]} />
           </View>
         </EyeWrapper>
         {(skin.eyeStyle === 'angry' || skin.eyeStyle === 'intense') && (
