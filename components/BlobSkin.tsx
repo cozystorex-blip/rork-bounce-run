@@ -172,14 +172,14 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
               height: armH,
               borderRadius: armW / 2,
               borderWidth: outline * 0.8,
-              bottom: bodyH * 0.2,
-              left: (wrapW - bodyW) / 2 - armW * 0.35,
+              bottom: bodyH * 0.22,
+              left: (wrapW - bodyW) / 2 - armW * 0.18,
               backgroundColor: armColor,
-              transform: [{ rotate: '-20deg' }],
+              transform: [{ rotate: '-15deg' }],
             },
           ]}
         >
-          <View style={[ls.armHand, { width: armW * 0.55, height: armH * 0.7, borderRadius: armW * 0.28, right: -armW * 0.08, backgroundColor: armColor, borderWidth: outline * 0.6 }]} />
+          <View style={[ls.armHand, { width: armW * 0.5, height: armH * 0.65, borderRadius: armW * 0.25, right: -armW * 0.06, backgroundColor: armColor, borderWidth: outline * 0.6 }]} />
         </View>
         <View
           style={[
@@ -189,14 +189,14 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
               height: armH,
               borderRadius: armW / 2,
               borderWidth: outline * 0.8,
-              bottom: bodyH * 0.2,
-              right: (wrapW - bodyW) / 2 - armW * 0.35,
+              bottom: bodyH * 0.22,
+              right: (wrapW - bodyW) / 2 - armW * 0.18,
               backgroundColor: armColor,
-              transform: [{ rotate: '20deg' }],
+              transform: [{ rotate: '15deg' }],
             },
           ]}
         >
-          <View style={[ls.armHand, { width: armW * 0.55, height: armH * 0.7, borderRadius: armW * 0.28, left: -armW * 0.08, backgroundColor: armColor, borderWidth: outline * 0.6 }]} />
+          <View style={[ls.armHand, { width: armW * 0.5, height: armH * 0.65, borderRadius: armW * 0.25, left: -armW * 0.06, backgroundColor: armColor, borderWidth: outline * 0.6 }]} />
         </View>
       </>
     );
@@ -301,7 +301,7 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
   const renderChain = () => {
     if (!skin.hasChain) return null;
     return (
-      <View style={[ls.chain, { bottom: bodyH * 0.32, left: bodyW * 0.33, width: s * 0.3, height: s * 0.045, borderRadius: s * 0.023, borderWidth: outline * 0.4 }]} />
+      <View style={[ls.chain, { bottom: bodyH * 0.32, left: bodyW * 0.34, width: s * 0.28, height: s * 0.04, borderRadius: s * 0.02, borderWidth: outline * 0.4 }]} />
     );
   };
 
@@ -328,7 +328,7 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
           {
             width: bodyW,
             height: bodyH,
-            borderRadius: bodyW / 2.1,
+            borderRadius: bodyW / 2.2,
             borderWidth: outline,
             bottom: 0,
             left: (wrapW - bodyW) / 2,
@@ -336,9 +336,8 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
           },
         ]}
       >
-        <View style={[ls.bodyShine, { width: bodyW * 0.26, height: bodyH * 0.1, top: bodyH * 0.07, left: bodyW * 0.13, borderRadius: bodyH * 0.05 }]} />
-        <View style={[ls.bodyShine2, { width: bodyW * 0.13, height: bodyH * 0.06, top: bodyH * 0.2, left: bodyW * 0.1, borderRadius: bodyH * 0.03 }]} />
-        <View style={[ls.bodyBump, { width: bodyW * 0.14, height: bodyH * 0.07, borderRadius: bodyW * 0.07, top: bodyH * 0.55, right: bodyW * 0.07, backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+        <View style={[ls.bodyShine, { width: bodyW * 0.22, height: bodyH * 0.09, top: bodyH * 0.07, left: bodyW * 0.13, borderRadius: bodyH * 0.045 }]} />
+        <View style={[ls.bodyShine2, { width: bodyW * 0.11, height: bodyH * 0.05, top: bodyH * 0.2, left: bodyW * 0.1, borderRadius: bodyH * 0.025 }]} />
         {renderMask()}
         {renderEyes()}
         {renderCheeks()}
@@ -360,10 +359,10 @@ const ls = StyleSheet.create({
     borderColor: '#1A1A2E',
     alignItems: 'center',
     shadowColor: '#1A1A2E',
-    shadowOffset: { width: 3, height: 5 },
-    shadowOpacity: 0.45,
+    shadowOffset: { width: 2, height: 4 },
+    shadowOpacity: 0.38,
     shadowRadius: 1,
-    elevation: 6,
+    elevation: 5,
     overflow: 'visible',
   },
   bodyShine: {

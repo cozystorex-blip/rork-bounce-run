@@ -64,18 +64,18 @@ export default React.memo(function BlobCharacter({
   }, [bobAnim, squishAnim, blinkAnim, sipAnim, showSmoothie]);
 
   const s = size;
-  const bodyW = s * 1.3;
-  const bodyH = s * 1.05;
-  const eyeW = s * 0.36;
-  const eyeH = s * 0.4;
-  const pupilSize = s * 0.24;
-  const pupilHL = s * 0.1;
-  const outline = Math.max(4, s * 0.08);
-  const hatH = s * 0.36;
-  const hatW = s * 0.88;
-  const cheekSize = s * 0.16;
-  const armW = s * 0.22;
-  const armH = s * 0.18;
+  const bodyW = s * 1.25;
+  const bodyH = s * 1.0;
+  const eyeW = s * 0.34;
+  const eyeH = s * 0.38;
+  const pupilSize = s * 0.22;
+  const pupilHL = s * 0.09;
+  const outline = Math.max(3, s * 0.065);
+  const hatH = s * 0.34;
+  const hatW = s * 0.84;
+  const cheekSize = s * 0.14;
+  const armW = s * 0.18;
+  const armH = s * 0.14;
 
   const cupW = s * 0.32;
   const cupH = s * 0.48;
@@ -94,8 +94,8 @@ export default React.memo(function BlobCharacter({
       style={[
         styles.wrapper,
         {
-          width: s + 30 + (showSmoothie ? cupW + 6 : 0),
-          height: s + 28,
+          width: s + 24 + (showSmoothie ? cupW + 6 : 0),
+          height: s + 22,
           transform: [{ translateY: bobAnim }, { scaleY: squishAnim }],
         },
       ]}
@@ -109,13 +109,13 @@ export default React.memo(function BlobCharacter({
             borderRadius: armW / 2,
             borderWidth: outline * 0.8,
             bottom: bodyH * 0.25,
-            left: (s + 30 - bodyW) / 2 - armW * 0.4,
+            left: (s + 24 - bodyW) / 2 - armW * 0.2,
             backgroundColor: darkerColor,
-            transform: [{ rotate: '-25deg' }],
+            transform: [{ rotate: '-18deg' }],
           },
         ]}
       >
-        <View style={[styles.armHand, { width: armW * 0.55, height: armH * 0.7, borderRadius: armW * 0.28, right: -armW * 0.1, backgroundColor: darkerColor, borderWidth: outline * 0.6 }]} />
+        <View style={[styles.armHand, { width: armW * 0.5, height: armH * 0.65, borderRadius: armW * 0.25, right: -armW * 0.08, backgroundColor: darkerColor, borderWidth: outline * 0.6 }]} />
       </View>
       <View
         style={[
@@ -126,13 +126,13 @@ export default React.memo(function BlobCharacter({
             borderRadius: armW / 2,
             borderWidth: outline * 0.8,
             bottom: bodyH * 0.25,
-            right: showSmoothie ? cupW * 0.3 : (s + 30 - bodyW) / 2 - armW * 0.4,
+            right: showSmoothie ? cupW * 0.3 : (s + 24 - bodyW) / 2 - armW * 0.2,
             backgroundColor: darkerColor,
-            transform: [{ rotate: '25deg' }],
+            transform: [{ rotate: '18deg' }],
           },
         ]}
       >
-        <View style={[styles.armHand, { width: armW * 0.55, height: armH * 0.7, borderRadius: armW * 0.28, left: -armW * 0.1, backgroundColor: darkerColor, borderWidth: outline * 0.6 }]} />
+        <View style={[styles.armHand, { width: armW * 0.5, height: armH * 0.65, borderRadius: armW * 0.25, left: -armW * 0.08, backgroundColor: darkerColor, borderWidth: outline * 0.6 }]} />
       </View>
 
       <View
@@ -141,37 +141,35 @@ export default React.memo(function BlobCharacter({
           {
             width: bodyW,
             height: bodyH,
-            borderRadius: bodyW / 2.1,
+            borderRadius: bodyW / 2.2,
             borderWidth: outline,
             bottom: 0,
-            left: (s + 30 - bodyW) / 2,
+            left: (s + 24 - bodyW) / 2,
             backgroundColor: color,
           },
         ]}
       >
-        <View style={[styles.bodyShine, { width: bodyW * 0.28, height: bodyH * 0.12, top: bodyH * 0.08, left: bodyW * 0.14, borderRadius: bodyH * 0.06 }]} />
-        <View style={[styles.bodyShine2, { width: bodyW * 0.14, height: bodyH * 0.07, top: bodyH * 0.24, left: bodyW * 0.12, borderRadius: bodyH * 0.035 }]} />
+        <View style={[styles.bodyShine, { width: bodyW * 0.24, height: bodyH * 0.1, top: bodyH * 0.08, left: bodyW * 0.14, borderRadius: bodyH * 0.05 }]} />
+        <View style={[styles.bodyShine2, { width: bodyW * 0.12, height: bodyH * 0.06, top: bodyH * 0.22, left: bodyW * 0.12, borderRadius: bodyH * 0.03 }]} />
 
-        <View style={[styles.bodyBump, { width: bodyW * 0.15, height: bodyH * 0.08, borderRadius: bodyW * 0.08, top: bodyH * 0.55, right: bodyW * 0.08, backgroundColor: 'rgba(255,255,255,0.2)' }]} />
-
-        <Animated.View style={[styles.eyeOuter, { width: eyeW, height: eyeH, borderRadius: eyeW / 2, borderWidth: outline, top: bodyH * 0.18, left: bodyW * 0.1, transform: [{ rotate: '-6deg' }, { scaleY: blinkAnim }] }]}>
-          <View style={[styles.pupil, { width: pupilSize, height: pupilSize, borderRadius: pupilSize / 2, marginTop: eyeH * 0.15, marginLeft: eyeW * 0.15 }]}>
+        <Animated.View style={[styles.eyeOuter, { width: eyeW, height: eyeH, borderRadius: eyeW / 2, borderWidth: outline, top: bodyH * 0.2, left: bodyW * 0.12, transform: [{ rotate: '-5deg' }, { scaleY: blinkAnim }] }]}>
+          <View style={[styles.pupil, { width: pupilSize, height: pupilSize, borderRadius: pupilSize / 2, marginTop: eyeH * 0.14, marginLeft: eyeW * 0.14 }]}>
             <View style={[styles.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: pupilHL / 2, top: pupilSize * 0.06, left: pupilSize * 0.06 }]} />
             <View style={[styles.pupilHL2, { width: pupilHL * 0.5, height: pupilHL * 0.5, borderRadius: pupilHL * 0.25, bottom: pupilSize * 0.1, right: pupilSize * 0.08 }]} />
           </View>
         </Animated.View>
-        <Animated.View style={[styles.eyeOuter, { width: eyeW, height: eyeH, borderRadius: eyeW / 2, borderWidth: outline, top: bodyH * 0.18, right: bodyW * 0.1, transform: [{ rotate: '6deg' }, { scaleY: blinkAnim }] }]}>
-          <View style={[styles.pupil, { width: pupilSize, height: pupilSize, borderRadius: pupilSize / 2, marginTop: eyeH * 0.15, marginLeft: eyeW * 0.15 }]}>
+        <Animated.View style={[styles.eyeOuter, { width: eyeW, height: eyeH, borderRadius: eyeW / 2, borderWidth: outline, top: bodyH * 0.2, right: bodyW * 0.12, transform: [{ rotate: '5deg' }, { scaleY: blinkAnim }] }]}>
+          <View style={[styles.pupil, { width: pupilSize, height: pupilSize, borderRadius: pupilSize / 2, marginTop: eyeH * 0.14, marginLeft: eyeW * 0.14 }]}>
             <View style={[styles.pupilHL, { width: pupilHL, height: pupilHL, borderRadius: pupilHL / 2, top: pupilSize * 0.06, left: pupilSize * 0.06 }]} />
             <View style={[styles.pupilHL2, { width: pupilHL * 0.5, height: pupilHL * 0.5, borderRadius: pupilHL * 0.25, bottom: pupilSize * 0.1, right: pupilSize * 0.08 }]} />
           </View>
         </Animated.View>
 
-        <View style={[styles.brow, { top: bodyH * 0.12, left: bodyW * 0.06, width: eyeW * 1.05, height: outline * 2.2, borderRadius: outline, transform: [{ rotate: '16deg' }] }]} />
-        <View style={[styles.brow, { top: bodyH * 0.12, right: bodyW * 0.06, width: eyeW * 1.05, height: outline * 2.2, borderRadius: outline, transform: [{ rotate: '-16deg' }] }]} />
+        <View style={[styles.brow, { top: bodyH * 0.14, left: bodyW * 0.08, width: eyeW * 1.0, height: outline * 2, borderRadius: outline, transform: [{ rotate: '14deg' }] }]} />
+        <View style={[styles.brow, { top: bodyH * 0.14, right: bodyW * 0.08, width: eyeW * 1.0, height: outline * 2, borderRadius: outline, transform: [{ rotate: '-14deg' }] }]} />
 
-        <View style={[styles.cheek, { width: cheekSize, height: cheekSize * 0.55, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, left: bodyW * 0.04 }]} />
-        <View style={[styles.cheek, { width: cheekSize, height: cheekSize * 0.55, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, right: bodyW * 0.04 }]} />
+        <View style={[styles.cheek, { width: cheekSize, height: cheekSize * 0.5, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, left: bodyW * 0.06 }]} />
+        <View style={[styles.cheek, { width: cheekSize, height: cheekSize * 0.5, borderRadius: cheekSize / 2, bottom: bodyH * 0.22, right: bodyW * 0.06 }]} />
 
         {showSmoothie ? (
           <View style={[styles.sippingMouth, { width: s * 0.16, height: s * 0.16, bottom: bodyH * 0.08, left: bodyW * 0.5 - (s * 0.08), borderRadius: s * 0.08, borderWidth: outline * 0.7 }]} />
@@ -181,7 +179,7 @@ export default React.memo(function BlobCharacter({
           </View>
         )}
 
-        <View style={[styles.chain, { bottom: bodyH * 0.35, left: bodyW * 0.35, width: s * 0.28, height: s * 0.04, borderRadius: s * 0.02, borderWidth: outline * 0.4 }]} />
+        <View style={[styles.chain, { bottom: bodyH * 0.34, left: bodyW * 0.36, width: s * 0.26, height: s * 0.035, borderRadius: s * 0.018, borderWidth: outline * 0.4 }]} />
       </View>
 
       <View
@@ -194,7 +192,7 @@ export default React.memo(function BlobCharacter({
             borderTopRightRadius: hatW * 0.48,
             borderWidth: outline,
             top: 0,
-            left: (s + 30 - hatW) / 2,
+            left: (s + 24 - hatW) / 2,
             backgroundColor: hatColor,
           },
         ]}
@@ -248,10 +246,10 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     alignItems: 'center',
     shadowColor: '#1A1A2E',
-    shadowOffset: { width: 3, height: 5 },
-    shadowOpacity: 0.5,
+    shadowOffset: { width: 2, height: 4 },
+    shadowOpacity: 0.4,
     shadowRadius: 1,
-    elevation: 8,
+    elevation: 6,
   },
   bodyShine: {
     position: 'absolute',
