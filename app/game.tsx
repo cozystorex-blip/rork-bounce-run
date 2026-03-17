@@ -218,7 +218,6 @@ export default function GameScreen() {
   const splatPosition = useRef({ x: CHARACTER_BASE_X, y: SCREEN_HEIGHT / 2 });
 
   const renderTickRef = useRef(0);
-  const renderTickStateRef = useRef(0);
   const [renderTick, setRenderTick] = useState<number>(0);
   const batchedScoreRef = useRef(0);
   const needsScoreUpdate = useRef(false);
@@ -580,11 +579,11 @@ export default function GameScreen() {
     const absVel = Math.abs(vel);
     const stretchYVal = Math.min(1.3, 1 + absVel * 0.018);
     const stretchXVal = Math.max(0.78, 1 - absVel * 0.01);
-    if (Math.abs(stretchYVal - prevStretchY.current) > 0.04) {
+    if (Math.abs(stretchYVal - prevStretchY.current) > 0.06) {
       charStretchY.setValue(stretchYVal);
       prevStretchY.current = stretchYVal;
     }
-    if (Math.abs(stretchXVal - prevStretchX.current) > 0.04) {
+    if (Math.abs(stretchXVal - prevStretchX.current) > 0.06) {
       charStretchX.setValue(stretchXVal);
       prevStretchX.current = stretchXVal;
     }
@@ -651,11 +650,11 @@ export default function GameScreen() {
     }
 
     cloudTickCounter.current++;
-    if (cloudTickCounter.current >= 30) {
+    if (cloudTickCounter.current >= 45) {
       cloudTickCounter.current = 0;
       for (let ci = 0; ci < clouds.current.length; ci++) {
         const c = clouds.current[ci];
-        c.x -= c.speed * (currentSpeed / GAME_CONFIG.OBSTACLE_SPEED) * 12;
+        c.x -= c.speed * (currentSpeed / GAME_CONFIG.OBSTACLE_SPEED) * 18;
         if (c.x < -150) {
           const fresh = generateCloud(c.id);
           c.x = fresh.x;
@@ -689,16 +688,15 @@ export default function GameScreen() {
 
     charAnim.setValue(characterY.current);
     const rotVal = Math.max(-1, Math.min(1, velocity.current / 8));
-    if (Math.abs(rotVal - prevRotVal.current) > 0.03) {
+    if (Math.abs(rotVal - prevRotVal.current) > 0.05) {
       charRotation.setValue(rotVal);
       prevRotVal.current = rotVal;
     }
 
     renderThrottleRef.current++;
-    if (renderThrottleRef.current >= 1) {
+    if (renderThrottleRef.current >= 3) {
       renderThrottleRef.current = 0;
       renderTickRef.current++;
-      renderTickStateRef.current = renderTickRef.current;
       if (scoreChangedRef.current) {
         scoreChangedRef.current = false;
         batchedScoreRef.current = scoreRef.current;
@@ -708,7 +706,7 @@ export default function GameScreen() {
         needsScoreUpdate.current = false;
         setScore(batchedScoreRef.current);
       }
-      setRenderTick(renderTickStateRef.current);
+      setRenderTick(renderTickRef.current);
     }
 
     return true;
@@ -1097,7 +1095,6 @@ export default function GameScreen() {
 
       result.push(
         <View key={o.id} style={styles.obstacleGroup}>
-          {/* === TOP OBSTACLE: ceiling to gapStart === */}
           <View style={{
             position: 'absolute' as const, left: shaftLeft, top: 0,
             width: POLE_SHAFT_W, height: topShaftH,
@@ -1108,31 +1105,13 @@ export default function GameScreen() {
             position: 'absolute' as const, left: capLeft, top: topCapTop,
             width: POLE_CAP_W, height: POLE_CAP_H,
             backgroundColor: palette.ledge, borderColor: oc,
-            borderWidth: bw, borderRadius: POLE_CAP_RADIUS, zIndex: 2,
-            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.18, shadowRadius: 3, elevation: 3,
+            borderWidth: bw, borderRadius: POLE_CAP_RADIUS,
           }} />
-          <View style={{
-            position: 'absolute' as const,
-            left: capLeft + bw + scale(3), top: topCapTop + bw + scale(1),
-            width: POLE_CAP_W - bw * 2 - scale(6), height: scale(3),
-            backgroundColor: 'rgba(255,255,255,0.32)', borderRadius: scale(2), zIndex: 3,
-          }} />
-
-          {/* === BOTTOM OBSTACLE: gapEnd to floor === */}
           <View style={{
             position: 'absolute' as const, left: capLeft, top: botCapTop,
             width: POLE_CAP_W, height: POLE_CAP_H,
             backgroundColor: palette.ledge, borderColor: oc,
-            borderWidth: bw, borderRadius: POLE_CAP_RADIUS, zIndex: 2,
-            shadowColor: '#000', shadowOffset: { width: 0, height: -2 },
-            shadowOpacity: 0.18, shadowRadius: 3, elevation: 3,
-          }} />
-          <View style={{
-            position: 'absolute' as const,
-            left: capLeft + bw + scale(3), top: botCapTop + bw + scale(1),
-            width: POLE_CAP_W - bw * 2 - scale(6), height: scale(3),
-            backgroundColor: 'rgba(255,255,255,0.32)', borderRadius: scale(2), zIndex: 3,
+            borderWidth: bw, borderRadius: POLE_CAP_RADIUS,
           }} />
           <View style={{
             position: 'absolute' as const, left: shaftLeft, top: botShaftTop,
