@@ -4,6 +4,11 @@
       "name": "Gap Dash",
       "path": ".",
       "framework": "react-native"
+    },
+    {
+      "name": "Blob Dash",
+      "path": "expo",
+      "framework": "react-native"
     }
   ]
 }

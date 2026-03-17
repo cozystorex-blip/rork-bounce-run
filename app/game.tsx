@@ -404,8 +404,8 @@ export default function GameScreen() {
       const pipeRight = o.x + capHalfW - insetX;
 
       if (charRight > pipeLeft && charLeft < pipeRight) {
-        if (charTop < gapStart + insetY) return true;
-        if (charBottom > gapEnd - insetY) return true;
+        if (charTop < gapStart - insetY) return true;
+        if (charBottom > gapEnd + insetY) return true;
       }
     }
     return false;
