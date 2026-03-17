@@ -352,9 +352,12 @@ export default function GameScreen() {
     const gapCenterMax = floorY - OBSTACLE_TUNING.GAP_CENTER_MAX_PADDING - gapSize / 2;
     const safeMin = Math.min(gapCenterMin, gapCenterMax);
     const safeMax = Math.max(gapCenterMin, gapCenterMax);
-    const shiftFactor = 0.45 + (lvl.level - 1) * 0.06;
-    const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.8);
-    const targetY = lastGapY.current + (Math.random() - 0.5) * maxShift * 2;
+    const shiftFactor = 0.40 + (lvl.level - 1) * 0.05;
+    const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.7);
+    const rawTarget = lastGapY.current + (Math.random() - 0.5) * maxShift * 2;
+    const midY = (safeMin + safeMax) / 2;
+    const pullToCenter = 0.15;
+    const targetY = rawTarget + (midY - rawTarget) * pullToCenter;
     const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
     lastGapY.current = gapCenter;
     const pair = BLOCK_COLOR_PAIRS[obstacleIdCounter.current % BLOCK_COLOR_PAIRS.length];
@@ -595,7 +598,8 @@ export default function GameScreen() {
 
     tapSpeedBonus.current *= GAME_CONFIG.TAP_SPEED_DECAY;
     if (tapSpeedBonus.current < 0.001) tapSpeedBonus.current = 0;
-    const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + tapSpeedBonus.current) * lvl.fastSpeedMult;
+    const clampedTapBonus = Math.min(tapSpeedBonus.current, GAME_CONFIG.MAX_TAP_SPEED_BONUS * 0.8);
+    const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus) * lvl.fastSpeedMult;
     const cx = getCharX();
 
     const obs = obstacles.current;
@@ -672,15 +676,17 @@ export default function GameScreen() {
 
     frameCount.current++;
     lastObstacleSpawn.current += GAME_CONFIG.FRAME_RATE;
-    const spawnInterval = lvl.spawnInterval / speedMultiplier.current;
+    const spawnSpeedFactor = Math.min(speedMultiplier.current, 1.4);
+    const spawnInterval = lvl.spawnInterval / spawnSpeedFactor;
     if (lastObstacleSpawn.current >= spawnInterval) {
       spawnObstacle();
       lastObstacleSpawn.current = 0;
     }
 
+    const distBasedProgress = distanceRef.current * 0.00012;
     speedMultiplier.current = Math.min(
       GAME_CONFIG.MAX_SPEED_MULTIPLIER,
-      1 + frameCount.current * GAME_CONFIG.SPEED_INCREMENT
+      1 + distBasedProgress
     );
 
     distanceRef.current += currentSpeed * 0.1;
@@ -766,17 +772,17 @@ export default function GameScreen() {
       const rawDelta = timestamp - lastTimeRef.current;
       lastTimeRef.current = timestamp;
 
-      if (rawDelta > 100) {
-        accumulatorRef.current = 0;
+      if (rawDelta > 200) {
+        accumulatorRef.current = GAME_CONFIG.FRAME_RATE;
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
 
-      const delta = Math.min(rawDelta, 33);
+      const delta = Math.min(rawDelta, 34);
       accumulatorRef.current += delta;
 
       let steps = 0;
-      const maxSteps = 3;
+      const maxSteps = 4;
       while (accumulatorRef.current >= GAME_CONFIG.FRAME_RATE && steps < maxSteps) {
         const alive = stepPhysicsRef.current();
         if (!alive) return;
@@ -784,8 +790,8 @@ export default function GameScreen() {
         steps++;
       }
 
-      if (accumulatorRef.current > GAME_CONFIG.FRAME_RATE * 2) {
-        accumulatorRef.current = GAME_CONFIG.FRAME_RATE;
+      if (accumulatorRef.current > GAME_CONFIG.FRAME_RATE * maxSteps) {
+        accumulatorRef.current = 0;
       }
 
       rafRef.current = requestAnimationFrame(tick);
