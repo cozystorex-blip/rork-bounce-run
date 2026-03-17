@@ -378,7 +378,6 @@ export default function GameScreen() {
     const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
     const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.97;
     const cx = getCharX();
-    const insetX = scale(OBSTACLE_TUNING.HITBOX_INSET_X);
     const halfHitX = hitSizeX / 2;
     const halfHitY = hitSizeY / 2;
     const centerY = cy + GAME_CONFIG.CHARACTER_SIZE / 2;
@@ -394,6 +393,7 @@ export default function GameScreen() {
     }
 
     const capHalfW = POLE_CAP_W / 2;
+    const tinyInset = scale(1);
 
     for (let oi = 0; oi < obs.length; oi++) {
       const o = obs[oi];
@@ -401,21 +401,30 @@ export default function GameScreen() {
       const gapStart = o.gapY - gap / 2;
       const gapEnd = o.gapY + gap / 2;
 
-      const pipeLeft = o.x - capHalfW + insetX;
-      const pipeRight = o.x + capHalfW - insetX;
+      const pipeLeft = o.x - capHalfW + tinyInset;
+      const pipeRight = o.x + capHalfW - tinyInset;
 
-      if (charRight > pipeLeft && charLeft < pipeRight) {
-        if (charTop < gapStart) return true;
-        if (charBottom > gapEnd) return true;
+      const xOverlap = charRight > pipeLeft && charLeft < pipeRight;
+
+      if (xOverlap) {
+        if (charTop < gapStart || charBottom > gapEnd) return true;
       }
 
-      const shaftHalfW = POLE_SHAFT_W / 2;
-      const shaftLeft = o.x - shaftHalfW;
-      const shaftRight = o.x + shaftHalfW;
+      if (!xOverlap) {
+        const shaftHalfW = POLE_SHAFT_W / 2;
+        const shaftLeft = o.x - shaftHalfW;
+        const shaftRight = o.x + shaftHalfW;
+        if (charRight > shaftLeft && charLeft < shaftRight) {
+          if (charTop < gapStart - POLE_CAP_H || charBottom > gapEnd + POLE_CAP_H) return true;
+        }
+      }
 
-      if (charRight > shaftLeft && charLeft < shaftRight) {
-        if (charTop < gapStart - POLE_CAP_H) return true;
-        if (charBottom > gapEnd + POLE_CAP_H) return true;
+      const sweptLeft = o.x - capHalfW + tinyInset;
+      const prevPipeRight = pipeRight + GAME_CONFIG.OBSTACLE_SPEED * levelRef.current.fastSpeedMult * (speedMultiplier.current + Math.min(tapSpeedBonus.current, GAME_CONFIG.MAX_TAP_SPEED_BONUS));
+      if (charRight > sweptLeft && charLeft < prevPipeRight) {
+        if (charRight <= pipeLeft || charLeft >= pipeRight) {
+          if (charTop < gapStart || charBottom > gapEnd) return true;
+        }
       }
     }
     return false;
