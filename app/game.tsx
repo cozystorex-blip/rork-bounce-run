@@ -188,6 +188,7 @@ export default function GameScreen() {
   const gallopMomentum = useRef(0);
   const consecutiveClears = useRef(0);
   const rhythmStreak = useRef(0);
+  const poleSpeedBoost = useRef(0);
 
   const lastTapTime = useRef(0);
   const tapInterval = useRef(0);
@@ -868,6 +869,9 @@ export default function GameScreen() {
         const cadenceQuality = (polePassCadence.current > 20 && polePassCadence.current < 150) ? 1.0 : 0.45;
         gallopMomentum.current = Math.min(2.4, gallopMomentum.current + (0.14 + streakFactor * 0.10) * cadenceQuality);
 
+        const clearBoost = 0.018 + streakFactor * 0.012 + cadenceQuality * 0.008;
+        poleSpeedBoost.current = Math.min(0.45, poleSpeedBoost.current + clearBoost);
+
         const cadenceBonus = polePassCadence.current > 0 ? Math.min(0.04, 60 / Math.max(40, polePassCadence.current) * 0.014) : 0;
         const momentumBounce = gallopMomentum.current * 0.012;
         const streakBounce = streakFactor * 0.025;
@@ -943,9 +947,11 @@ export default function GameScreen() {
     const lateRamp = Math.max(0, Math.min(runProgress - 2.5, 2.5)) * 0.04;
     const deepRamp = Math.max(0, runProgress - 5.0) * 0.015;
     const smoothRamp = earlyRamp + midRamp + lateRamp + deepRamp;
+    poleSpeedBoost.current *= 0.9985;
+    if (poleSpeedBoost.current < 0.001) poleSpeedBoost.current = 0;
     const sFlow = Math.min(1, rhythmStreak.current / 11);
     const rhythmBoost = gallopMomentum.current * 0.005 + sFlow * 0.004;
-    const targetSpeed = 1 + smoothRamp + rhythmBoost;
+    const targetSpeed = 1 + smoothRamp + rhythmBoost + poleSpeedBoost.current;
     const prevSpeed = speedMultiplier.current;
     const speedLerp = targetSpeed > prevSpeed ? 0.022 : 0.018;
     speedMultiplier.current = Math.min(
@@ -1406,6 +1412,7 @@ export default function GameScreen() {
     gallopMomentum.current = 0;
     consecutiveClears.current = 0;
     rhythmStreak.current = 0;
+    poleSpeedBoost.current = 0;
     lastTapTime.current = 0;
     tapInterval.current = 0;
     rapidTapCount.current = 0;
