@@ -257,13 +257,20 @@ export default function GameScreen() {
   const gameStatusRef = useRef<GameStatus>('ready');
 
   useEffect(() => {
-    const pulse = Animated.loop(
+    const pulseX = Animated.loop(
       Animated.sequence([
-        Animated.timing(readyPulse, { toValue: 1.08, duration: 900, useNativeDriver: true }),
-        Animated.timing(readyPulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(charStretchX, { toValue: 1.06, duration: 1000, useNativeDriver: true }),
+        Animated.timing(charStretchX, { toValue: 0.96, duration: 1000, useNativeDriver: true }),
       ])
     );
-    pulse.start();
+    const pulseY = Animated.loop(
+      Animated.sequence([
+        Animated.timing(charStretchY, { toValue: 0.95, duration: 1000, useNativeDriver: true }),
+        Animated.timing(charStretchY, { toValue: 1.05, duration: 1000, useNativeDriver: true }),
+      ])
+    );
+    pulseX.start();
+    pulseY.start();
 
     const skyLoop = Animated.loop(
       Animated.sequence([
@@ -273,8 +280,8 @@ export default function GameScreen() {
     );
     skyLoop.start();
 
-    return () => { pulse.stop(); skyLoop.stop(); };
-  }, [readyPulse, skyShift]);
+    return () => { pulseX.stop(); pulseY.stop(); skyLoop.stop(); };
+  }, [charStretchX, charStretchY, skyShift]);
 
   const lastGapY = useRef(SCREEN_HEIGHT / 2);
 
@@ -832,10 +839,19 @@ export default function GameScreen() {
       velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
       charAnim.setValue(characterY.current);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      charScale.stopAnimation();
-      Animated.sequence([
-        Animated.timing(charScale, { toValue: mp.flapSquashX, duration: Math.max(6, mp.flapSquashDuration * 0.4), useNativeDriver: true }),
-        Animated.spring(charScale, { toValue: 1, friction: mp.flapSpringFriction * 0.7, tension: mp.flapSpringTension * 1.8, useNativeDriver: true }),
+      charStretchX.stopAnimation();
+      charStretchY.stopAnimation();
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(charStretchX, { toValue: 1.18, duration: 60, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 0.92, friction: 3, tension: 200, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(charStretchY, { toValue: 0.82, duration: 60, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1.1, friction: 3, tension: 200, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
+        ]),
       ]).start();
       if (mp.wobbleAmount > 0) {
         charWobble.setValue(0);
@@ -921,19 +937,35 @@ export default function GameScreen() {
 
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-        charScale.stopAnimation();
-        Animated.sequence([
-          Animated.timing(charScale, { toValue: trick === 'boost' ? 0.78 : trick === 'dive' ? 1.12 : 0.85, duration: 35, useNativeDriver: true }),
-          Animated.spring(charScale, { toValue: 1, friction: 4, tension: 180, useNativeDriver: true }),
+        charStretchX.stopAnimation();
+        charStretchY.stopAnimation();
+        const trickSquashX = trick === 'boost' ? 0.75 : trick === 'dive' ? 1.15 : 0.82;
+        const trickSquashY = trick === 'boost' ? 1.25 : trick === 'dive' ? 0.85 : 1.18;
+        Animated.parallel([
+          Animated.sequence([
+            Animated.timing(charStretchX, { toValue: trickSquashX, duration: 50, useNativeDriver: true }),
+            Animated.spring(charStretchX, { toValue: 1, friction: 3.5, tension: 160, useNativeDriver: true }),
+          ]),
+          Animated.sequence([
+            Animated.timing(charStretchY, { toValue: trickSquashY, duration: 50, useNativeDriver: true }),
+            Animated.spring(charStretchY, { toValue: 1, friction: 3.5, tension: 160, useNativeDriver: true }),
+          ]),
         ]).start();
       } else {
         velocity.current = lvl.fastJump;
         tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST * 0.5);
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        charScale.stopAnimation();
-        Animated.sequence([
-          Animated.timing(charScale, { toValue: 0.9, duration: 30, useNativeDriver: true }),
-          Animated.spring(charScale, { toValue: 1, friction: 5, tension: 180, useNativeDriver: true }),
+        charStretchX.stopAnimation();
+        charStretchY.stopAnimation();
+        Animated.parallel([
+          Animated.sequence([
+            Animated.timing(charStretchX, { toValue: 1.12, duration: 45, useNativeDriver: true }),
+            Animated.spring(charStretchX, { toValue: 1, friction: 4, tension: 150, useNativeDriver: true }),
+          ]),
+          Animated.sequence([
+            Animated.timing(charStretchY, { toValue: 0.88, duration: 45, useNativeDriver: true }),
+            Animated.spring(charStretchY, { toValue: 1, friction: 4, tension: 150, useNativeDriver: true }),
+          ]),
         ]).start();
       }
     } else {
@@ -942,10 +974,19 @@ export default function GameScreen() {
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
       velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      charScale.stopAnimation();
-      Animated.sequence([
-        Animated.timing(charScale, { toValue: mp.flapSquashX * 1.05, duration: Math.max(20, mp.flapSquashDuration * 0.5), useNativeDriver: true }),
-        Animated.spring(charScale, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 1.2, useNativeDriver: true }),
+      charStretchX.stopAnimation();
+      charStretchY.stopAnimation();
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(charStretchX, { toValue: 1 + (1 - mp.flapSquashX) * 1.1, duration: Math.max(40, mp.flapSquashDuration * 0.6), useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 0.94, friction: mp.flapSpringFriction * 0.6, tension: mp.flapSpringTension * 1.3, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 0.8, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(charStretchY, { toValue: mp.flapSquashX * 0.95, duration: Math.max(40, mp.flapSquashDuration * 0.6), useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1.06, friction: mp.flapSpringFriction * 0.6, tension: mp.flapSpringTension * 1.3, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 0.8, useNativeDriver: true }),
+        ]),
       ]).start();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
