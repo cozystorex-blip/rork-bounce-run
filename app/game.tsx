@@ -180,6 +180,7 @@ export default function GameScreen() {
   const isFastPhase = useRef(true);
   const phaseBlend = useRef(1.0);
   const phaseTransitionCounter = useRef(0);
+  const gallopTimer = useRef(0);
 
   const charAnim = useRef(new Animated.Value(SCREEN_HEIGHT / 2)).current;
   const charXAnim = useRef(new Animated.Value(0)).current;
@@ -649,6 +650,36 @@ export default function GameScreen() {
       stretchYVal -= droopFactor;
       stretchXVal += droopFactor * 0.6;
     }
+
+    if (gallopTimer.current > 0) {
+      gallopTimer.current--;
+      const gt = gallopTimer.current / 10;
+      if (gt > 0.5) {
+        const release = (gt - 0.5) * 2;
+        stretchYVal *= (1 + release * 0.07);
+        stretchXVal *= (1 - release * 0.05);
+      } else {
+        const settle = gt * 2;
+        stretchYVal *= (1 - settle * 0.04);
+        stretchXVal *= (1 + settle * 0.03);
+      }
+    }
+
+    const nearObs = obstacles.current;
+    const proxCx = getCharX();
+    for (let pi = 0; pi < nearObs.length; pi++) {
+      const po = nearObs[pi];
+      if (po.passed) continue;
+      const distToBlob = po.x - proxCx;
+      if (distToBlob > 0 && distToBlob < POLE_CAP_W * 2) {
+        const proximity = 1 - (distToBlob / (POLE_CAP_W * 2));
+        const squeezeFactor = proximity * proximity * 0.035;
+        stretchXVal *= (1 - squeezeFactor);
+        stretchYVal *= (1 + squeezeFactor * 0.5);
+        break;
+      }
+    }
+
     prevVelSign.current = vel;
 
     if (Math.abs(stretchYVal - prevStretchY.current) > 0.008) {
@@ -690,9 +721,10 @@ export default function GameScreen() {
         newlyPassed++;
         spawnFloatingScore(o.x, o.gapY, scoreRef.current);
 
-        const settleNudge = 0.35 + Math.min(0.25, Math.abs(velocity.current) * 0.04);
-        if (velocity.current < 1.0) {
-          velocity.current += settleNudge;
+        gallopTimer.current = 10;
+        const gallopBounce = -0.55 - Math.min(0.25, Math.abs(velocity.current) * 0.025);
+        if (velocity.current > -3.0) {
+          velocity.current += gallopBounce;
         }
       }
     }
@@ -753,10 +785,11 @@ export default function GameScreen() {
       lastObstacleSpawn.current = 0;
     }
 
-    const distBasedProgress = distanceRef.current * 0.00012;
+    const runProgress = distanceRef.current * 0.00008 + scoreRef.current * 0.014;
+    const smoothRamp = Math.sqrt(Math.min(runProgress, 2.5)) * 0.5;
     speedMultiplier.current = Math.min(
       GAME_CONFIG.MAX_SPEED_MULTIPLIER,
-      1 + distBasedProgress
+      1 + smoothRamp
     );
 
     distanceRef.current += currentSpeed * 0.1;
@@ -1150,6 +1183,7 @@ export default function GameScreen() {
     isFastPhase.current = true;
     phaseBlend.current = 1.0;
     phaseTransitionCounter.current = 0;
+    gallopTimer.current = 0;
     levelRef.current = LEVELS[0];
     setCurrentLevel(LEVELS[0]);
     setShowLevelUp(false);
