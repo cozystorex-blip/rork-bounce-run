@@ -998,14 +998,14 @@ export default function GameScreen() {
       lastObstacleSpawn.current = 0;
     }
 
-    const distContrib = distanceRef.current * 0.00002;
-    const scoreContrib = scoreRef.current * 0.005;
+    const distContrib = distanceRef.current * 0.00003;
+    const scoreContrib = scoreRef.current * 0.007;
     const runProgress = distContrib + scoreContrib;
-    const earlyRamp = Math.min(runProgress, 0.5) * 0.12;
-    const midRamp = Math.max(0, Math.min(runProgress - 0.5, 2.0)) * 0.11;
-    const lateRamp = Math.max(0, Math.min(runProgress - 2.5, 2.5)) * 0.05;
-    const deepRamp = Math.max(0, Math.min(runProgress - 5.0, 4.0)) * 0.025;
-    const endlessRamp = Math.max(0, runProgress - 9.0) * 0.012;
+    const earlyRamp = Math.min(runProgress, 0.5) * 0.14;
+    const midRamp = Math.max(0, Math.min(runProgress - 0.5, 2.0)) * 0.13;
+    const lateRamp = Math.max(0, Math.min(runProgress - 2.5, 2.5)) * 0.08;
+    const deepRamp = Math.max(0, Math.min(runProgress - 5.0, 4.0)) * 0.045;
+    const endlessRamp = Math.max(0, runProgress - 9.0) * 0.025;
     const smoothRamp = earlyRamp + midRamp + lateRamp + deepRamp + endlessRamp;
     poleSpeedBoost.current *= GAME_CONFIG.POLE_SPEED_DECAY;
     if (poleSpeedBoost.current < 0.001) poleSpeedBoost.current = 0;
