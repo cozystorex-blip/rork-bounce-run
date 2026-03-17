@@ -189,6 +189,8 @@ export default function GameScreen() {
   const consecutiveClears = useRef(0);
   const rhythmStreak = useRef(0);
   const poleSpeedBoost = useRef(0);
+  const polePulseTimer = useRef(0);
+  const polePulseIntensity = useRef(0);
 
   const lastTapTime = useRef(0);
   const tapInterval = useRef(0);
@@ -758,6 +760,29 @@ export default function GameScreen() {
       stretchXVal *= (1 - rhythmWave * 0.002);
     }
 
+    if (polePulseTimer.current > 0) {
+      polePulseTimer.current--;
+      const pulseDur = 28;
+      const pt = polePulseTimer.current / pulseDur;
+      const intensity = polePulseIntensity.current * blobby;
+      if (pt > 0.65) {
+        const expand = (pt - 0.65) / 0.35;
+        const eased = expand * expand * (3 - 2 * expand);
+        stretchXVal *= (1 + eased * 0.045 * intensity);
+        stretchYVal *= (1 - eased * 0.03 * intensity);
+      } else if (pt > 0.3) {
+        const contract = (pt - 0.3) / 0.35;
+        const eased = Math.sin(contract * Math.PI);
+        stretchXVal *= (1 - eased * 0.025 * intensity);
+        stretchYVal *= (1 + eased * 0.035 * intensity);
+      } else {
+        const settle = pt / 0.3;
+        const gentleWave = Math.sin(settle * Math.PI * 0.8) * settle;
+        stretchXVal *= (1 + gentleWave * 0.012 * intensity);
+        stretchYVal *= (1 - gentleWave * 0.008 * intensity);
+      }
+    }
+
     gallopMomentum.current *= 0.994;
     if (gallopMomentum.current < 0.005) gallopMomentum.current = 0;
 
@@ -852,8 +877,11 @@ export default function GameScreen() {
         const cadenceQuality = (polePassCadence.current > 20 && polePassCadence.current < 150) ? 1.0 : 0.45;
         gallopMomentum.current = Math.min(2.4, gallopMomentum.current + (0.14 + streakFactor * 0.10) * cadenceQuality);
 
-        const clearBoost = 0.032 + streakFactor * 0.018 + cadenceQuality * 0.014;
-        poleSpeedBoost.current = Math.min(0.65, poleSpeedBoost.current + clearBoost);
+        const clearBoost = GAME_CONFIG.POLE_PASS_SPEED_KICK + streakFactor * 0.025 + cadenceQuality * 0.02;
+        poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + clearBoost);
+
+        polePulseTimer.current = 28;
+        polePulseIntensity.current = Math.min(1.5, 0.6 + consecutiveClears.current * 0.12 + streakFactor * 0.3);
 
         const cadenceBonus = polePassCadence.current > 0 ? Math.min(0.04, 60 / Math.max(40, polePassCadence.current) * 0.014) : 0;
         const momentumBounce = gallopMomentum.current * 0.012;
@@ -930,7 +958,7 @@ export default function GameScreen() {
     const lateRamp = Math.max(0, Math.min(runProgress - 2.5, 2.5)) * 0.04;
     const deepRamp = Math.max(0, runProgress - 5.0) * 0.015;
     const smoothRamp = earlyRamp + midRamp + lateRamp + deepRamp;
-    poleSpeedBoost.current *= 0.997;
+    poleSpeedBoost.current *= GAME_CONFIG.POLE_SPEED_DECAY;
     if (poleSpeedBoost.current < 0.001) poleSpeedBoost.current = 0;
     const sFlow = Math.min(1, rhythmStreak.current / 11);
     const rhythmBoost = gallopMomentum.current * 0.008 + sFlow * 0.007;
@@ -1396,6 +1424,8 @@ export default function GameScreen() {
     consecutiveClears.current = 0;
     rhythmStreak.current = 0;
     poleSpeedBoost.current = 0;
+    polePulseTimer.current = 0;
+    polePulseIntensity.current = 0;
     lastTapTime.current = 0;
     tapInterval.current = 0;
     rapidTapCount.current = 0;
