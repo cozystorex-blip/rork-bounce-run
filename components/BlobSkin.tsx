@@ -94,28 +94,28 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
     const EarWrapper = animated ? Animated.View : View;
 
     if (skin.earStyle === 'cat') {
-      const earW = s * 0.28;
-      const earH = s * 0.34;
+      const earW = s * 0.26;
+      const earH = s * 0.28;
       return (
         <>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.28, left: (wrapW - bodyW) / 2 + bodyW * 0.15, backgroundColor: earColor, borderTopLeftRadius: earW * 0.15, borderTopRightRadius: earW * 0.85, borderBottomLeftRadius: earW * 0.3, borderBottomRightRadius: earW * 0.3, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-30deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.5, top: earH * 0.15, left: earW * 0.25, backgroundColor: earInner, borderTopLeftRadius: earW * 0.1, borderTopRightRadius: earW * 0.45, borderBottomRightRadius: earW * 0.1 }]} />
+          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.08, left: (wrapW - bodyW) / 2 + bodyW * 0.1, backgroundColor: earColor, borderRadius: earW * 0.42, borderTopLeftRadius: earW * 0.3, borderTopRightRadius: earW * 0.55, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-25deg' }] }]}>
+            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.5, top: earH * 0.2, left: earW * 0.25, backgroundColor: earInner, borderRadius: earW * 0.25 }]} />
           </EarWrapper>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.28, right: (wrapW - bodyW) / 2 + bodyW * 0.15, backgroundColor: earColor, borderTopLeftRadius: earW * 0.85, borderTopRightRadius: earW * 0.15, borderBottomLeftRadius: earW * 0.3, borderBottomRightRadius: earW * 0.3, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '30deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.5, top: earH * 0.15, right: earW * 0.25, backgroundColor: earInner, borderTopRightRadius: earW * 0.1, borderTopLeftRadius: earW * 0.45, borderBottomLeftRadius: earW * 0.1 }]} />
+          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.08, right: (wrapW - bodyW) / 2 + bodyW * 0.1, backgroundColor: earColor, borderRadius: earW * 0.42, borderTopLeftRadius: earW * 0.55, borderTopRightRadius: earW * 0.3, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '25deg' }] }]}>
+            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.5, top: earH * 0.2, right: earW * 0.25, backgroundColor: earInner, borderRadius: earW * 0.25 }]} />
           </EarWrapper>
         </>
       );
     }
 
     if (skin.earStyle === 'bear') {
-      const earR = s * 0.2;
+      const earR = s * 0.18;
       return (
         <>
-          <EarWrapper style={[ls.ear, { width: earR * 2, height: earR * 2, top: -earR * 0.55, left: (wrapW - bodyW) / 2 + bodyW * 0.12, backgroundColor: earColor, borderRadius: earR, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-20deg' }] }]}>
+          <EarWrapper style={[ls.ear, { width: earR * 2, height: earR * 2, top: earR * 0.15, left: (wrapW - bodyW) / 2 + bodyW * 0.08, backgroundColor: earColor, borderRadius: earR, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-18deg' }] }]}>
             <View style={[ls.earInner, { width: earR * 1.1, height: earR * 1.1, borderRadius: earR * 0.55, backgroundColor: earInner, top: earR * 0.35, left: earR * 0.45 }]} />
           </EarWrapper>
-          <EarWrapper style={[ls.ear, { width: earR * 2, height: earR * 2, top: -earR * 0.55, right: (wrapW - bodyW) / 2 + bodyW * 0.12, backgroundColor: earColor, borderRadius: earR, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '20deg' }] }]}>
+          <EarWrapper style={[ls.ear, { width: earR * 2, height: earR * 2, top: earR * 0.15, right: (wrapW - bodyW) / 2 + bodyW * 0.08, backgroundColor: earColor, borderRadius: earR, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '18deg' }] }]}>
             <View style={[ls.earInner, { width: earR * 1.1, height: earR * 1.1, borderRadius: earR * 0.55, backgroundColor: earInner, top: earR * 0.35, right: earR * 0.45 }]} />
           </EarWrapper>
         </>
@@ -123,30 +123,30 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
     }
 
     if (skin.earStyle === 'bunny') {
-      const earW = s * 0.19;
-      const earH = s * 0.5;
+      const earW = s * 0.18;
+      const earH = s * 0.42;
       return (
         <>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.52, left: (wrapW - bodyW) / 2 + bodyW * 0.22, backgroundColor: earColor, borderRadius: earW / 2, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-22deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.6, borderRadius: earW * 0.25, backgroundColor: earInner, top: earH * 0.12, left: earW * 0.25 }]} />
+          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.32, left: (wrapW - bodyW) / 2 + bodyW * 0.2, backgroundColor: earColor, borderRadius: earW / 2, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-18deg' }] }]}>
+            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.55, borderRadius: earW * 0.25, backgroundColor: earInner, top: earH * 0.14, left: earW * 0.25 }]} />
           </EarWrapper>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.52, right: (wrapW - bodyW) / 2 + bodyW * 0.22, backgroundColor: earColor, borderRadius: earW / 2, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '22deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.6, borderRadius: earW * 0.25, backgroundColor: earInner, top: earH * 0.12, right: earW * 0.25 }]} />
+          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.32, right: (wrapW - bodyW) / 2 + bodyW * 0.2, backgroundColor: earColor, borderRadius: earW / 2, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '18deg' }] }]}>
+            <View style={[ls.earInner, { width: earW * 0.5, height: earH * 0.55, borderRadius: earW * 0.25, backgroundColor: earInner, top: earH * 0.14, right: earW * 0.25 }]} />
           </EarWrapper>
         </>
       );
     }
 
     if (skin.earStyle === 'fox') {
-      const earW = s * 0.3;
-      const earH = s * 0.38;
+      const earW = s * 0.27;
+      const earH = s * 0.3;
       return (
         <>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.32, left: (wrapW - bodyW) / 2 + bodyW * 0.12, backgroundColor: earColor, borderTopLeftRadius: earW * 0.15, borderTopRightRadius: earW * 0.85, borderBottomLeftRadius: earW * 0.25, borderBottomRightRadius: earW * 0.25, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-32deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.45, height: earH * 0.45, top: earH * 0.18, left: earW * 0.28, backgroundColor: earInner, borderTopRightRadius: earW * 0.4, borderBottomRightRadius: earW * 0.08 }]} />
+          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.1, left: (wrapW - bodyW) / 2 + bodyW * 0.08, backgroundColor: earColor, borderRadius: earW * 0.4, borderTopLeftRadius: earW * 0.3, borderTopRightRadius: earW * 0.52, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-24deg' }] }]}>
+            <View style={[ls.earInner, { width: earW * 0.48, height: earH * 0.48, top: earH * 0.2, left: earW * 0.26, backgroundColor: earInner, borderRadius: earW * 0.24 }]} />
           </EarWrapper>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.32, right: (wrapW - bodyW) / 2 + bodyW * 0.12, backgroundColor: earColor, borderTopRightRadius: earW * 0.15, borderTopLeftRadius: earW * 0.85, borderBottomRightRadius: earW * 0.25, borderBottomLeftRadius: earW * 0.25, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '32deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.45, height: earH * 0.45, top: earH * 0.18, right: earW * 0.28, backgroundColor: earInner, borderTopLeftRadius: earW * 0.4, borderBottomLeftRadius: earW * 0.08 }]} />
+          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.1, right: (wrapW - bodyW) / 2 + bodyW * 0.08, backgroundColor: earColor, borderRadius: earW * 0.4, borderTopRightRadius: earW * 0.3, borderTopLeftRadius: earW * 0.52, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '24deg' }] }]}>
+            <View style={[ls.earInner, { width: earW * 0.48, height: earH * 0.48, top: earH * 0.2, right: earW * 0.26, backgroundColor: earInner, borderRadius: earW * 0.24 }]} />
           </EarWrapper>
         </>
       );
@@ -154,14 +154,14 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
 
     if (skin.earStyle === 'pointy') {
       const earW = s * 0.24;
-      const earH = s * 0.4;
+      const earH = s * 0.32;
       return (
         <>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.35, left: (wrapW - bodyW) / 2 + bodyW * 0.14, backgroundColor: earColor, borderTopLeftRadius: earW * 0.1, borderTopRightRadius: earW * 0.9, borderBottomLeftRadius: earW * 0.3, borderBottomRightRadius: earW * 0.3, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-26deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.42, height: earH * 0.42, top: earH * 0.22, left: earW * 0.3, backgroundColor: earInner, borderTopRightRadius: earW * 0.4 }]} />
+          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.05, left: (wrapW - bodyW) / 2 + bodyW * 0.1, backgroundColor: earColor, borderRadius: earW * 0.38, borderTopLeftRadius: earW * 0.2, borderTopRightRadius: earW * 0.55, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotL as any : '-22deg' }] }]}>
+            <View style={[ls.earInner, { width: earW * 0.44, height: earH * 0.44, top: earH * 0.22, left: earW * 0.28, backgroundColor: earInner, borderRadius: earW * 0.22 }]} />
           </EarWrapper>
-          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: -earH * 0.35, right: (wrapW - bodyW) / 2 + bodyW * 0.14, backgroundColor: earColor, borderTopRightRadius: earW * 0.1, borderTopLeftRadius: earW * 0.9, borderBottomRightRadius: earW * 0.3, borderBottomLeftRadius: earW * 0.3, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '26deg' }] }]}>
-            <View style={[ls.earInner, { width: earW * 0.42, height: earH * 0.42, top: earH * 0.22, right: earW * 0.3, backgroundColor: earInner, borderTopLeftRadius: earW * 0.4 }]} />
+          <EarWrapper style={[ls.ear, { width: earW, height: earH, top: earH * 0.05, right: (wrapW - bodyW) / 2 + bodyW * 0.1, backgroundColor: earColor, borderRadius: earW * 0.38, borderTopRightRadius: earW * 0.2, borderTopLeftRadius: earW * 0.55, borderWidth: outline, transform: [{ rotate: animated ? earWiggleRotR as any : '22deg' }] }]}>
+            <View style={[ls.earInner, { width: earW * 0.44, height: earH * 0.44, top: earH * 0.22, right: earW * 0.28, backgroundColor: earInner, borderRadius: earW * 0.22 }]} />
           </EarWrapper>
         </>
       );
@@ -500,7 +500,7 @@ export default React.memo(function BlobSkin({ skin, size = 80, animated = true }
           {
             width: bodyW,
             height: bodyH,
-            borderRadius: bodyW / 1.95,
+            borderRadius: bodyW / 2.05,
             borderWidth: outline,
             bottom: 0,
             left: (wrapW - bodyW) / 2,
