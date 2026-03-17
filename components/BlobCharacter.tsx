@@ -82,8 +82,8 @@ export default React.memo(function BlobCharacter({
   }, [bobAnim, squishAnim, blinkAnim, sipAnim, earWiggle, showSmoothie]);
 
   const s = size;
-  const bodyW = s * 1.2;
-  const bodyH = s * 1.0;
+  const bodyW = s * 1.25;
+  const bodyH = s * 1.05;
   const eyeW = s * 0.3;
   const eyeH = s * 0.34;
   const pupilSize = s * 0.2;
@@ -108,15 +108,15 @@ export default React.memo(function BlobCharacter({
 
   const earWiggleRotL = earWiggle.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: ['5deg', '0deg', '-8deg'],
+    outputRange: ['8deg', '0deg', '-12deg'],
   });
   const earWiggleRotR = earWiggle.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: ['-5deg', '0deg', '8deg'],
+    outputRange: ['-8deg', '0deg', '12deg'],
   });
 
-  const earW = s * 0.26;
-  const earH = s * 0.3;
+  const earW = s * 0.3;
+  const earH = s * 0.36;
 
   return (
     <Animated.View
@@ -132,25 +132,25 @@ export default React.memo(function BlobCharacter({
       {/* Fox ears */}
       <Animated.View style={[styles.ear, {
         width: earW, height: earH,
-        top: 0, left: (s * 1.4 + 24 - bodyW) / 2 + bodyW * 0.06,
+        top: earH * 0.18, left: (s * 1.4 + 24 - bodyW) / 2 + bodyW * 0.05,
         backgroundColor: color,
-        borderTopLeftRadius: earW * 0.2, borderTopRightRadius: earW * 0.8,
-        borderBottomLeftRadius: earW * 0.05, borderBottomRightRadius: earW * 0.15,
+        borderTopLeftRadius: earW * 0.15, borderTopRightRadius: earW * 0.85,
+        borderBottomLeftRadius: earW * 0.25, borderBottomRightRadius: earW * 0.25,
         borderWidth: outline, borderColor: '#1A1A2E',
         transform: [{ rotate: earWiggleRotL }],
       }]}>
-        <View style={{ position: 'absolute', width: earW * 0.5, height: earH * 0.5, top: earH * 0.22, left: earW * 0.25, backgroundColor: earInnerColor, borderTopRightRadius: earW * 0.4 }} />
+        <View style={{ position: 'absolute', width: earW * 0.45, height: earH * 0.45, top: earH * 0.18, left: earW * 0.28, backgroundColor: earInnerColor, borderTopRightRadius: earW * 0.4, borderBottomRightRadius: earW * 0.08 }} />
       </Animated.View>
       <Animated.View style={[styles.ear, {
         width: earW, height: earH,
-        top: 0, right: (s * 1.4 + 24 - bodyW) / 2 + bodyW * 0.06 + (showSmoothie ? cupW + 6 : 0),
+        top: earH * 0.18, right: (s * 1.4 + 24 - bodyW) / 2 + bodyW * 0.05 + (showSmoothie ? cupW + 6 : 0),
         backgroundColor: color,
-        borderTopRightRadius: earW * 0.2, borderTopLeftRadius: earW * 0.8,
-        borderBottomRightRadius: earW * 0.05, borderBottomLeftRadius: earW * 0.15,
+        borderTopRightRadius: earW * 0.15, borderTopLeftRadius: earW * 0.85,
+        borderBottomRightRadius: earW * 0.25, borderBottomLeftRadius: earW * 0.25,
         borderWidth: outline, borderColor: '#1A1A2E',
         transform: [{ rotate: earWiggleRotR }],
       }]}>
-        <View style={{ position: 'absolute', width: earW * 0.5, height: earH * 0.5, top: earH * 0.22, right: earW * 0.25, backgroundColor: earInnerColor, borderTopLeftRadius: earW * 0.4 }} />
+        <View style={{ position: 'absolute', width: earW * 0.45, height: earH * 0.45, top: earH * 0.18, right: earW * 0.28, backgroundColor: earInnerColor, borderTopLeftRadius: earW * 0.4, borderBottomLeftRadius: earW * 0.08 }} />
       </Animated.View>
 
       {/* Arms */}
@@ -199,7 +199,7 @@ export default React.memo(function BlobCharacter({
           styles.body,
           {
             width: bodyW, height: bodyH,
-            borderRadius: bodyW / 2.1,
+            borderRadius: bodyW / 1.95,
             borderWidth: outline, bottom: 0,
             left: (s * 1.4 + 24 - bodyW) / 2,
             backgroundColor: color,
