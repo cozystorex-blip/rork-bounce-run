@@ -358,8 +358,7 @@ export default function GameScreen() {
     const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
     lastGapY.current = gapCenter;
     const pair = BLOCK_COLOR_PAIRS[obstacleIdCounter.current % BLOCK_COLOR_PAIRS.length];
-    const angleRange = Math.min(3 + (lvl.level - 1) * 1.2, 8);
-    const pipeAngle = (Math.random() - 0.5) * angleRange;
+    const pipeAngle = 0;
     obstacles.current.push({
       id: obstacleIdCounter.current++,
       x: SCREEN_WIDTH + 50,
