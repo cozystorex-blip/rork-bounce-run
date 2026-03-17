@@ -955,9 +955,10 @@ export default function GameScreen() {
     const runProgress = distContrib + scoreContrib;
     const earlyRamp = Math.min(runProgress, 0.5) * 0.12;
     const midRamp = Math.max(0, Math.min(runProgress - 0.5, 2.0)) * 0.11;
-    const lateRamp = Math.max(0, Math.min(runProgress - 2.5, 2.5)) * 0.04;
-    const deepRamp = Math.max(0, Math.min(runProgress - 5.0, 3.0)) * 0.015;
-    const smoothRamp = Math.min(earlyRamp + midRamp + lateRamp + deepRamp, 0.42);
+    const lateRamp = Math.max(0, Math.min(runProgress - 2.5, 2.5)) * 0.05;
+    const deepRamp = Math.max(0, Math.min(runProgress - 5.0, 4.0)) * 0.025;
+    const endlessRamp = Math.max(0, runProgress - 9.0) * 0.012;
+    const smoothRamp = earlyRamp + midRamp + lateRamp + deepRamp + endlessRamp;
     poleSpeedBoost.current *= GAME_CONFIG.POLE_SPEED_DECAY;
     if (poleSpeedBoost.current < 0.001) poleSpeedBoost.current = 0;
     const sFlow = Math.min(1, rhythmStreak.current / 11);
