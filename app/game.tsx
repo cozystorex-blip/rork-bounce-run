@@ -679,6 +679,11 @@ export default function GameScreen() {
         scored = true;
         newlyPassed++;
         spawnFloatingScore(o.x, o.gapY, scoreRef.current);
+
+        const settleNudge = 0.35 + Math.min(0.25, Math.abs(velocity.current) * 0.04);
+        if (velocity.current < 1.0) {
+          velocity.current += settleNudge;
+        }
       }
     }
 
