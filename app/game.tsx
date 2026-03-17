@@ -874,8 +874,8 @@ export default function GameScreen() {
         const cadenceQuality = (polePassCadence.current > 20 && polePassCadence.current < 150) ? 1.0 : 0.45;
         gallopMomentum.current = Math.min(2.4, gallopMomentum.current + (0.14 + streakFactor * 0.10) * cadenceQuality);
 
-        const clearBoost = 0.018 + streakFactor * 0.012 + cadenceQuality * 0.008;
-        poleSpeedBoost.current = Math.min(0.45, poleSpeedBoost.current + clearBoost);
+        const clearBoost = 0.032 + streakFactor * 0.018 + cadenceQuality * 0.014;
+        poleSpeedBoost.current = Math.min(0.65, poleSpeedBoost.current + clearBoost);
 
         const cadenceBonus = polePassCadence.current > 0 ? Math.min(0.04, 60 / Math.max(40, polePassCadence.current) * 0.014) : 0;
         const momentumBounce = gallopMomentum.current * 0.012;
@@ -952,10 +952,10 @@ export default function GameScreen() {
     const lateRamp = Math.max(0, Math.min(runProgress - 2.5, 2.5)) * 0.04;
     const deepRamp = Math.max(0, runProgress - 5.0) * 0.015;
     const smoothRamp = earlyRamp + midRamp + lateRamp + deepRamp;
-    poleSpeedBoost.current *= 0.9985;
+    poleSpeedBoost.current *= 0.997;
     if (poleSpeedBoost.current < 0.001) poleSpeedBoost.current = 0;
     const sFlow = Math.min(1, rhythmStreak.current / 11);
-    const rhythmBoost = gallopMomentum.current * 0.005 + sFlow * 0.004;
+    const rhythmBoost = gallopMomentum.current * 0.008 + sFlow * 0.007;
     const targetSpeed = 1 + smoothRamp + rhythmBoost + poleSpeedBoost.current;
     const prevSpeed = speedMultiplier.current;
     const speedLerp = targetSpeed > prevSpeed ? 0.022 : 0.018;
