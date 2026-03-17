@@ -568,25 +568,17 @@ export default function GameScreen() {
     const lvl = levelRef.current;
     const mp = movementProfileRef.current;
     const gravBase = lvl.fastGravity * mp.gravityMultiplier;
-    const velSign = velocity.current < 0 ? -1 : 1;
     const velMag = Math.abs(velocity.current);
-    const gravCurve = velocity.current < 0
-      ? gravBase * (0.85 + 0.12 * Math.min(1, velMag / 5.5))
-      : gravBase * (0.96 + 0.04 * Math.min(1, velMag / 4.5));
-    velocity.current += gravCurve;
+    const gravScale = 0.92 + 0.08 * Math.min(1, velMag / 5.0);
+    velocity.current += gravBase * gravScale;
     velocity.current *= mp.fallDamping;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
-    if (velocity.current < 0) {
-      const riseEase = 1.0 - Math.min(0.34, Math.abs(velocity.current) * 0.015);
-      const riseSpeed = velocity.current * riseEase * (1.0 + (1.0 - mp.riseSmoothing) * 0.18);
-      characterY.current += riseSpeed;
-    } else {
-      const fallEase = 1.0 - Math.max(0, (velocity.current - 2.2) * 0.028);
-      characterY.current += velocity.current * Math.max(0.85, fallEase);
-    }
+    const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.008);
+    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) : 1.0;
+    characterY.current += velocity.current * moveSmooth * riseBoost;
 
     const minY = safeTop + 2;
     const maxY = SCREEN_HEIGHT - GROUND_HEIGHT - 2;
@@ -643,61 +635,44 @@ export default function GameScreen() {
     let stretchYVal: number;
     let stretchXVal: number;
 
-    const rapidFactor = Math.min(1, rapidTapCount.current / 5);
     const sustainFallT = Math.min(1, sustainedFallFrames.current / 20);
+    const stretchLerp = 0.15;
 
     if (vel < -0.5) {
       const riseIntensity = Math.min(1, absVel / 6);
-      const popEffect = correctionTap.current ? 0.012 : 0;
-      stretchYVal = Math.min(1.30, 1 + riseIntensity * 0.026 + popEffect);
-      stretchXVal = Math.max(0.78, 1 - riseIntensity * 0.016 - popEffect * 0.6);
-      if (rapidFactor > 0.3) {
-        const tighten = rapidFactor * 0.025;
-        stretchYVal += tighten * 0.4;
-        stretchXVal -= tighten * 0.3;
-      }
+      const popEffect = correctionTap.current ? 0.01 : 0;
+      const targetY = Math.min(1.25, 1 + riseIntensity * 0.024 + popEffect);
+      const targetX = Math.max(0.80, 1 - riseIntensity * 0.014 - popEffect * 0.5);
+      stretchYVal = prevStretchY.current + (targetY - prevStretchY.current) * stretchLerp;
+      stretchXVal = prevStretchX.current + (targetX - prevStretchX.current) * stretchLerp;
     } else if (vel > 0.6) {
       const fallT = Math.min(1, absVel / 5);
-      const downPointT = Math.min(1, absVel / 4);
-      const droopGrow = sustainFallT * 0.04;
-      const softDroopCurve = fallT * fallT;
-      const blobSettle = Math.sin(sustainFallT * Math.PI * 0.45) * 0.015;
-      const softDroopPulse = Math.sin(sustainedFallFrames.current * 0.12) * sustainFallT * 0.005;
-      const droopEaseIn = Math.min(1, (vel - 0.6) / 2.0);
-      const gentleSquash = droopEaseIn * droopEaseIn * 0.018;
-      stretchYVal = Math.max(0.80, 1 - softDroopCurve * 0.12 - fallT * 0.045 - downPointT * 0.038 - droopGrow - blobSettle - gentleSquash - softDroopPulse);
-      stretchXVal = Math.min(1.21, 1 + softDroopCurve * 0.13 + fallT * 0.045 + downPointT * 0.028 + droopGrow * 0.55 + blobSettle * 0.65 + gentleSquash * 0.7 + Math.abs(softDroopPulse) * 0.4);
+      const droopEaseIn = Math.min(1, (vel - 0.6) / 2.5);
+      const droopCurve = droopEaseIn * droopEaseIn;
+      const sustainBonus = sustainFallT * 0.03;
+      const targetY = Math.max(0.82, 1 - fallT * 0.06 - droopCurve * 0.08 - sustainBonus);
+      const targetX = Math.min(1.18, 1 + fallT * 0.055 + droopCurve * 0.07 + sustainBonus * 0.5);
+      stretchYVal = prevStretchY.current + (targetY - prevStretchY.current) * stretchLerp;
+      stretchXVal = prevStretchX.current + (targetX - prevStretchX.current) * stretchLerp;
     } else {
-      const returnSpeed = 0.12;
-      stretchYVal = prevStretchY.current + (1 - prevStretchY.current) * returnSpeed;
-      stretchXVal = prevStretchX.current + (1 - prevStretchX.current) * returnSpeed;
+      stretchYVal = prevStretchY.current + (1 - prevStretchY.current) * stretchLerp;
+      stretchXVal = prevStretchX.current + (1 - prevStretchX.current) * stretchLerp;
     }
 
     if (dirChangeSmooth.current > 0) {
-      dirChangeSmooth.current *= 0.88;
+      dirChangeSmooth.current *= 0.90;
       if (dirChangeSmooth.current < 0.005) dirChangeSmooth.current = 0;
     }
     if (prevVelSign.current < 0 && vel > 0.3) {
-      dirChangeSmooth.current = Math.min(1, Math.max(dirChangeSmooth.current, absVel * 0.16));
-      const elasticBounce = dirChangeSmooth.current * 0.06;
-      const settleWobble = Math.sin(dirChangeSmooth.current * Math.PI * 1.5) * 0.008;
-      stretchXVal += elasticBounce + Math.abs(settleWobble) * 0.3;
-      stretchYVal -= elasticBounce * 0.82 + settleWobble;
-    } else if (prevVelSign.current > 0 && vel < -0.3) {
       dirChangeSmooth.current = Math.min(1, Math.max(dirChangeSmooth.current, absVel * 0.12));
       const elasticBounce = dirChangeSmooth.current * 0.04;
+      stretchXVal += elasticBounce;
+      stretchYVal -= elasticBounce * 0.7;
+    } else if (prevVelSign.current > 0 && vel < -0.3) {
+      dirChangeSmooth.current = Math.min(1, Math.max(dirChangeSmooth.current, absVel * 0.10));
+      const elasticBounce = dirChangeSmooth.current * 0.03;
       stretchYVal += elasticBounce;
-      stretchXVal -= elasticBounce * 0.65;
-    }
-
-    if (isFalling && vel > 1.2) {
-      const droopBase = Math.min(0.05, (vel - 1.2) * 0.01);
-      const sustainDroop = sustainFallT * 0.024;
-      const blobDroopWobble = Math.sin(sustainedFallFrames.current * 0.15) * sustainFallT * 0.008;
-      const softSettleEase = Math.min(1, (vel - 1.2) / 3) * 0.01;
-      const organicPulse = Math.sin(sustainedFallFrames.current * 0.22) * Math.min(0.004, sustainFallT * 0.004);
-      stretchYVal -= droopBase + sustainDroop + softSettleEase + blobDroopWobble + organicPulse;
-      stretchXVal += (droopBase + sustainDroop + softSettleEase) * 0.58 + Math.abs(blobDroopWobble) * 0.35 + Math.abs(organicPulse) * 0.3;
+      stretchXVal -= elasticBounce * 0.5;
     }
 
     if (gallopTimer.current > 0) {
@@ -811,11 +786,11 @@ export default function GameScreen() {
 
     prevVelSign.current = vel;
 
-    if (Math.abs(stretchYVal - prevStretchY.current) > 0.008) {
+    if (Math.abs(stretchYVal - prevStretchY.current) > 0.003) {
       charStretchY.setValue(stretchYVal);
       prevStretchY.current = stretchYVal;
     }
-    if (Math.abs(stretchXVal - prevStretchX.current) > 0.008) {
+    if (Math.abs(stretchXVal - prevStretchX.current) > 0.003) {
       charStretchX.setValue(stretchXVal);
       prevStretchX.current = stretchXVal;
     }
@@ -985,7 +960,7 @@ export default function GameScreen() {
     }
 
     renderThrottleRef.current++;
-    if (renderThrottleRef.current >= 3) {
+    if (renderThrottleRef.current >= 2) {
       renderThrottleRef.current = 0;
       renderTickRef.current++;
       if (scoreChangedRef.current) {
