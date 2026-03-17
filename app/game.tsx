@@ -638,11 +638,14 @@ export default function GameScreen() {
     const sustainFallT = Math.min(1, sustainedFallFrames.current / 20);
     const stretchLerp = 0.15;
 
+    const blobProg = Math.min(1, scoreRef.current / 50);
+    const blobby = 1 + blobProg * 0.8;
+
     if (vel < -0.5) {
       const riseIntensity = Math.min(1, absVel / 6);
       const popEffect = correctionTap.current ? 0.01 : 0;
-      const targetY = Math.min(1.25, 1 + riseIntensity * 0.024 + popEffect);
-      const targetX = Math.max(0.80, 1 - riseIntensity * 0.014 - popEffect * 0.5);
+      const targetY = Math.min(1.25, 1 + (riseIntensity * 0.024 + popEffect) * blobby);
+      const targetX = Math.max(0.80, 1 - (riseIntensity * 0.014 + popEffect * 0.5) * blobby);
       stretchYVal = prevStretchY.current + (targetY - prevStretchY.current) * stretchLerp;
       stretchXVal = prevStretchX.current + (targetX - prevStretchX.current) * stretchLerp;
     } else if (vel > 0.6) {
@@ -650,8 +653,8 @@ export default function GameScreen() {
       const droopEaseIn = Math.min(1, (vel - 0.6) / 2.5);
       const droopCurve = droopEaseIn * droopEaseIn;
       const sustainBonus = sustainFallT * 0.03;
-      const targetY = Math.max(0.82, 1 - fallT * 0.06 - droopCurve * 0.08 - sustainBonus);
-      const targetX = Math.min(1.18, 1 + fallT * 0.055 + droopCurve * 0.07 + sustainBonus * 0.5);
+      const targetY = Math.max(0.78, 1 - (fallT * 0.06 + droopCurve * 0.08 + sustainBonus) * blobby);
+      const targetX = Math.min(1.22, 1 + (fallT * 0.055 + droopCurve * 0.07 + sustainBonus * 0.5) * blobby);
       stretchYVal = prevStretchY.current + (targetY - prevStretchY.current) * stretchLerp;
       stretchXVal = prevStretchX.current + (targetX - prevStretchX.current) * stretchLerp;
     } else {
@@ -665,12 +668,12 @@ export default function GameScreen() {
     }
     if (prevVelSign.current < 0 && vel > 0.3) {
       dirChangeSmooth.current = Math.min(1, Math.max(dirChangeSmooth.current, absVel * 0.12));
-      const elasticBounce = dirChangeSmooth.current * 0.04;
+      const elasticBounce = dirChangeSmooth.current * 0.04 * blobby;
       stretchXVal += elasticBounce;
       stretchYVal -= elasticBounce * 0.7;
     } else if (prevVelSign.current > 0 && vel < -0.3) {
       dirChangeSmooth.current = Math.min(1, Math.max(dirChangeSmooth.current, absVel * 0.10));
-      const elasticBounce = dirChangeSmooth.current * 0.03;
+      const elasticBounce = dirChangeSmooth.current * 0.03 * blobby;
       stretchYVal += elasticBounce;
       stretchXVal -= elasticBounce * 0.5;
     }
@@ -769,7 +772,7 @@ export default function GameScreen() {
       if (!po.passed && distToBlob > 0 && distToBlob < POLE_CAP_W * 3.5) {
         const proximity = 1 - (distToBlob / (POLE_CAP_W * 3.5));
         const tenseFactor = proximity * proximity * proximity;
-        const squeezeFactor = tenseFactor * 0.022 * momentumScale * cadenceScale;
+        const squeezeFactor = tenseFactor * 0.022 * momentumScale * cadenceScale * blobby;
         stretchXVal *= (1 - squeezeFactor);
         stretchYVal *= (1 + squeezeFactor * 0.35);
         break;
@@ -777,7 +780,7 @@ export default function GameScreen() {
         const exitDist = Math.abs(distToBlob);
         const exitT = 1 - (exitDist / (POLE_CAP_W * 3.0));
         const exitEase = exitT * exitT * (3 - 2 * exitT);
-        const releaseFactor = exitEase * 0.016 * momentumScale * cadenceScale;
+        const releaseFactor = exitEase * 0.016 * momentumScale * cadenceScale * blobby;
         stretchXVal *= (1 + releaseFactor);
         stretchYVal *= (1 - releaseFactor * 0.2);
         break;
