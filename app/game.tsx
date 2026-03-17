@@ -519,19 +519,25 @@ export default function GameScreen() {
 
     const lvl = levelRef.current;
     const mp = movementProfileRef.current;
-    velocity.current += lvl.fastGravity * mp.gravityMultiplier;
+    const gravBase = lvl.fastGravity * mp.gravityMultiplier;
+    const velSign = velocity.current < 0 ? -1 : 1;
+    const velMag = Math.abs(velocity.current);
+    const gravCurve = velocity.current < 0
+      ? gravBase * (0.88 + 0.12 * Math.min(1, velMag / 5))
+      : gravBase * (1.0 + 0.04 * Math.min(1, velMag / 4));
+    velocity.current += gravCurve;
     velocity.current *= mp.fallDamping;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
     if (velocity.current < 0) {
-      const riseEase = 1.0 - Math.min(0.35, Math.abs(velocity.current) * 0.012);
-      const riseSpeed = velocity.current * riseEase * (1.0 + (1.0 - mp.riseSmoothing) * 0.15);
+      const riseEase = 1.0 - Math.min(0.32, Math.abs(velocity.current) * 0.014);
+      const riseSpeed = velocity.current * riseEase * (1.0 + (1.0 - mp.riseSmoothing) * 0.18);
       characterY.current += riseSpeed;
     } else {
-      const fallEase = 1.0 - Math.max(0, (velocity.current - 3) * 0.02);
-      characterY.current += velocity.current * Math.max(0.85, fallEase);
+      const fallEase = 1.0 - Math.max(0, (velocity.current - 2.5) * 0.022);
+      characterY.current += velocity.current * Math.max(0.87, fallEase);
     }
 
     const minY = safeTop + 2;
@@ -577,8 +583,8 @@ export default function GameScreen() {
     }
 
     const absVel = Math.abs(vel);
-    const stretchYVal = Math.min(1.3, 1 + absVel * 0.018);
-    const stretchXVal = Math.max(0.78, 1 - absVel * 0.01);
+    const stretchYVal = Math.min(1.28, 1 + absVel * 0.02);
+    const stretchXVal = Math.max(0.8, 1 - absVel * 0.012);
     if (Math.abs(stretchYVal - prevStretchY.current) > 0.06) {
       charStretchY.setValue(stretchYVal);
       prevStretchY.current = stretchYVal;
