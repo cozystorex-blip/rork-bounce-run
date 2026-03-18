@@ -587,32 +587,35 @@ export default function GameScreen() {
     const mp = movementProfileRef.current;
 
     cruiseBobPhase.current += 0.038;
-    const cruiseBob = Math.sin(cruiseBobPhase.current) * 0.4 + Math.sin(cruiseBobPhase.current * 1.7) * 0.15;
-    cruiseMomentum.current *= 0.978;
+    const cruiseBob = Math.sin(cruiseBobPhase.current) * 0.12 + Math.sin(cruiseBobPhase.current * 1.7) * 0.05;
+    cruiseMomentum.current *= 0.965;
     if (Math.abs(cruiseMomentum.current) < 0.001) cruiseMomentum.current = 0;
 
     const currentSpeedFactor = speedMultiplier.current;
     const speedT = Math.min(1, (currentSpeedFactor - 1) / 3.0);
 
-    const gravSoften = 1.0 - speedT * 0.08;
+    const gravSoften = 1.0 - speedT * 0.12;
     const velMag = Math.abs(velocity.current);
-    const gravScale = 0.90 + 0.10 * Math.min(1, velMag / 5.5);
+    const gravScale = 0.85 + 0.15 * Math.min(1, velMag / 6.0);
 
     const isGliding = glideTimer.current > 0;
-    const glideGravityReduction = isGliding ? (0.55 + glideIntensity.current * 0.25) : 1.0;
-    const gravBase = lvl.fastGravity * mp.gravityMultiplier * 0.92 * gravSoften * glideGravityReduction;
+    const glideGravityReduction = isGliding ? (0.35 + glideIntensity.current * 0.15) : 1.0;
+    const gravBase = lvl.fastGravity * mp.gravityMultiplier * 0.85 * gravSoften * glideGravityReduction;
     velocity.current += gravBase * gravScale;
-    velocity.current += cruiseBob * 0.018;
-    velocity.current += cruiseMomentum.current * 0.04;
+    velocity.current += cruiseBob * 0.008;
+    velocity.current += cruiseMomentum.current * 0.015;
     velocity.current *= mp.fallDamping;
+
+    const stabilizationForce = velocity.current > 0.5 ? -0.04 * Math.min(1, velocity.current / 4.0) : 0;
+    velocity.current += stabilizationForce;
 
     if (isGliding) {
       glideTimer.current--;
       const glideStr = glideIntensity.current;
       const glideDur = 18 + Math.min(1, rhythmStreak.current / 10) * 14 + speedT * 8;
       const glideProgress = 1 - (glideTimer.current / glideDur);
-      const glideCurve = glideProgress < 0.3 ? glideProgress / 0.3 : 1.0 - (glideProgress - 0.3) * 0.3;
-      const glideDamping = 0.88 - speedT * 0.07;
+      const glideCurve = glideProgress < 0.3 ? glideProgress / 0.3 : 1.0 - (glideProgress - 0.3) * 0.2;
+      const glideDamping = 0.82 - speedT * 0.05;
       velocity.current *= (glideDamping + (1 - glideDamping) * (1 - glideStr * glideCurve));
 
       const charCenterYGlide = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
@@ -631,23 +634,26 @@ export default function GameScreen() {
 
       if (foundNext) {
         const gapDiff = nextGapY - charCenterYGlide;
-        const glideSteerStrength = glideStr * glideCurve * 0.065 * (1 + speedT * 0.3);
-        const steerForce = Math.sign(gapDiff) * Math.min(Math.abs(gapDiff) * 0.008, 0.35) * glideSteerStrength;
+        const glideSteerStrength = glideStr * glideCurve * 0.085 * (1 + speedT * 0.3);
+        const steerForce = Math.sign(gapDiff) * Math.min(Math.abs(gapDiff) * 0.012, 0.45) * glideSteerStrength;
         velocity.current += steerForce;
       }
 
-      const glideSmooth = glideStr * glideCurve * 0.035 * (1 + speedT * 0.6);
-      if (velocity.current > 0.3) velocity.current -= glideSmooth;
-      if (velocity.current < -0.3) velocity.current += glideSmooth * 0.3;
-      const glideLift = glideStr * glideCurve * 0.012;
-      if (velocity.current > 1.2) velocity.current -= glideLift;
+      const glideSmooth = glideStr * glideCurve * 0.06 * (1 + speedT * 0.5);
+      if (velocity.current > 0.2) velocity.current -= glideSmooth;
+      if (velocity.current < -0.2) velocity.current += glideSmooth * 0.4;
+      const glideLift = glideStr * glideCurve * 0.025;
+      if (velocity.current > 0.8) velocity.current -= glideLift;
       const glideSpeedPush = glideStr * glideCurve * 0.018 * (1 + speedT * 0.3);
       poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + glideSpeedPush * 0.008);
     }
 
-    const maxFallVel = GAME_CONFIG.MAX_FALL_VELOCITY - speedT * 0.6;
+    const maxFallVel = GAME_CONFIG.MAX_FALL_VELOCITY - speedT * 0.5;
     if (velocity.current > maxFallVel) {
       velocity.current = maxFallVel;
+    }
+    if (velocity.current > 2.5) {
+      velocity.current *= 0.985;
     }
 
     const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.007);
@@ -1092,8 +1098,8 @@ export default function GameScreen() {
         const momentumBounce = gallopMomentum.current * 0.012;
         const streakBounce = streakFactor * 0.025;
         const rhythmFlow = cadenceQuality * 0.014;
-        const gallopBounce = -0.2 - cadenceBonus - momentumBounce - streakBounce - rhythmFlow - Math.min(0.05, Math.abs(velocity.current) * 0.005);
-        if (velocity.current > -2.2) {
+        const gallopBounce = -0.12 - cadenceBonus * 0.5 - momentumBounce * 0.5 - streakBounce * 0.5 - rhythmFlow * 0.5 - Math.min(0.03, Math.abs(velocity.current) * 0.003);
+        if (velocity.current > -1.8) {
           velocity.current += gallopBounce;
         }
       }

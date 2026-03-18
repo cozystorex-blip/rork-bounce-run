@@ -236,7 +236,7 @@ export const SKINS: SkinData[] = [
 export const DEFAULT_MOVEMENT: MovementProfile = {
   flapForceMultiplier: 1.0,
   gravityMultiplier: 1.0,
-  fallDamping: 0.985,
+  fallDamping: 0.978,
   flapSquashX: 0.85,
   flapSquashY: 1.1,
   flapSquashDuration: 40,
