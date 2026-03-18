@@ -194,6 +194,8 @@ export default function GameScreen() {
   const rollbackTimer = useRef(0);
   const rollbackIntensity = useRef(0);
   const rollbackDirection = useRef(0);
+  const cruiseHoverPhase = useRef(0);
+  const cruiseMomentum = useRef(0);
 
   const lastTapTime = useRef(0);
   const tapInterval = useRef(0);
@@ -388,11 +390,11 @@ export default function GameScreen() {
     const gapCenterMax = floorY - OBSTACLE_TUNING.GAP_CENTER_MAX_PADDING - gapSize / 2;
     const safeMin = Math.min(gapCenterMin, gapCenterMax);
     const safeMax = Math.max(gapCenterMin, gapCenterMax);
-    const shiftFactor = 0.36 + (lvl.level - 1) * 0.045;
-    const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.7);
+    const shiftFactor = 0.28 + (lvl.level - 1) * 0.038;
+    const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.6);
     const rawTarget = lastGapY.current + (Math.random() - 0.5) * maxShift * 2;
     const midY = (safeMin + safeMax) / 2;
-    const pullToCenter = 0.20;
+    const pullToCenter = 0.30;
     const targetY = rawTarget + (midY - rawTarget) * pullToCenter;
     const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
     lastGapY.current = gapCenter;
@@ -574,15 +576,30 @@ export default function GameScreen() {
     const mp = movementProfileRef.current;
     const gravBase = lvl.fastGravity * mp.gravityMultiplier;
     const velMag = Math.abs(velocity.current);
-    const gravScale = 0.92 + 0.08 * Math.min(1, velMag / 5.0);
+    const gravScale = 0.88 + 0.12 * Math.min(1, velMag / 5.0);
     velocity.current += gravBase * gravScale;
-    velocity.current *= mp.fallDamping;
+
+    cruiseHoverPhase.current = (cruiseHoverPhase.current + 1) % GAME_CONFIG.CRUISE_HOVER_PERIOD;
+    const hoverT = cruiseHoverPhase.current / GAME_CONFIG.CRUISE_HOVER_PERIOD;
+    const hoverWave = Math.sin(hoverT * Math.PI * 2);
+    const hoverForce = GAME_CONFIG.CRUISE_HOVER_FORCE * hoverWave;
+    velocity.current += hoverForce;
+
+    const midScreen = SCREEN_HEIGHT * 0.45;
+    const distFromMid = characterY.current - midScreen;
+    const centerPull = distFromMid * 0.003;
+    velocity.current -= centerPull;
+
+    cruiseMomentum.current = cruiseMomentum.current * 0.997 + velocity.current * 0.003;
+    const momentumDamp = 1.0 - Math.abs(cruiseMomentum.current) * 0.004;
+    velocity.current *= mp.fallDamping * GAME_CONFIG.CRUISE_DAMPING * momentumDamp;
+
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
-    const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.008);
-    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) : 1.0;
+    const moveSmooth = 1.0 - Math.min(0.14, velMag * 0.006);
+    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.10) : 1.0;
     characterY.current += velocity.current * moveSmooth * riseBoost;
 
     const minY = safeTop + 2;
@@ -1179,21 +1196,21 @@ export default function GameScreen() {
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
       const mp = movementProfileRef.current;
-      velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 0.85;
       charAnim.setValue(characterY.current);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(charStretchX, { toValue: 0.78, duration: 50, useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 1.08, friction: 3, tension: 220, useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 1, friction: 4, tension: 140, useNativeDriver: true }),
+          Animated.timing(charStretchX, { toValue: 0.85, duration: 60, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 1.05, friction: 4, tension: 160, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
         ]),
         Animated.sequence([
-          Animated.timing(charStretchY, { toValue: 1.22, duration: 50, useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 0.92, friction: 3, tension: 220, useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1, friction: 4, tension: 140, useNativeDriver: true }),
+          Animated.timing(charStretchY, { toValue: 1.15, duration: 60, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 0.95, friction: 4, tension: 160, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
         ]),
       ]).start();
       if (trajectoryFade.current) trajectoryFade.current.stop();
@@ -1322,7 +1339,8 @@ export default function GameScreen() {
       const mp = movementProfileRef.current;
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
-      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      const cruiseJumpMod = 0.82;
+      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * cruiseJumpMod;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
@@ -1339,30 +1357,30 @@ export default function GameScreen() {
       let recoveryY: number;
 
       if (isCorrectionFlap) {
-        squashXTarget = 1 + (1 - mp.flapSquashX) * 0.85;
-        squashYTarget = mp.flapSquashX * 0.92;
-        squashDur = Math.max(35, mp.flapSquashDuration * 0.5);
-        springFric = mp.flapSpringFriction * 0.55;
-        springTens = mp.flapSpringTension * 1.4;
+        squashXTarget = 1 + (1 - mp.flapSquashX) * 0.65;
+        squashYTarget = mp.flapSquashX * 0.94;
+        squashDur = Math.max(45, mp.flapSquashDuration * 0.6);
+        springFric = mp.flapSpringFriction * 0.7;
+        springTens = mp.flapSpringTension * 1.1;
+        recoveryX = 0.97;
+        recoveryY = 1.03;
+      } else if (rapidT > 0.4) {
+        const tighten = rapidT * 0.08;
+        squashXTarget = 1 + (1 - mp.flapSquashX) * (0.7 + tighten);
+        squashYTarget = mp.flapSquashX * (0.95 - tighten * 0.1);
+        squashDur = Math.max(40, mp.flapSquashDuration * 0.55);
+        springFric = mp.flapSpringFriction * 0.65;
+        springTens = mp.flapSpringTension * (1.15 + rapidT * 0.1);
         recoveryX = 0.96;
         recoveryY = 1.04;
-      } else if (rapidT > 0.4) {
-        const tighten = rapidT * 0.12;
-        squashXTarget = 1 + (1 - mp.flapSquashX) * (0.9 + tighten);
-        squashYTarget = mp.flapSquashX * (0.93 - tighten * 0.15);
-        squashDur = Math.max(30, mp.flapSquashDuration * 0.45);
-        springFric = mp.flapSpringFriction * 0.5;
-        springTens = mp.flapSpringTension * (1.35 + rapidT * 0.15);
-        recoveryX = 0.95;
-        recoveryY = 1.05;
       } else {
-        squashXTarget = 1 + (1 - mp.flapSquashX) * 1.1;
-        squashYTarget = mp.flapSquashX * 0.95;
-        squashDur = Math.max(40, mp.flapSquashDuration * 0.6);
-        springFric = mp.flapSpringFriction * 0.6;
-        springTens = mp.flapSpringTension * 1.3;
-        recoveryX = 0.94;
-        recoveryY = 1.06;
+        squashXTarget = 1 + (1 - mp.flapSquashX) * 0.8;
+        squashYTarget = mp.flapSquashX * 0.96;
+        squashDur = Math.max(50, mp.flapSquashDuration * 0.7);
+        springFric = mp.flapSpringFriction * 0.75;
+        springTens = mp.flapSpringTension * 1.05;
+        recoveryX = 0.96;
+        recoveryY = 1.04;
       }
 
       Animated.parallel([
@@ -1478,6 +1496,8 @@ export default function GameScreen() {
     rollbackTimer.current = 0;
     rollbackIntensity.current = 0;
     rollbackDirection.current = 0;
+    cruiseHoverPhase.current = 0;
+    cruiseMomentum.current = 0;
     lastTapTime.current = 0;
     tapInterval.current = 0;
     rapidTapCount.current = 0;
