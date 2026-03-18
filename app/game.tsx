@@ -478,7 +478,7 @@ export default function GameScreen() {
     }
 
     const capHalfW = POLE_CAP_W / 2;
-    const speedBuf = Math.ceil(currentObstacleSpeed.current) + 2;
+    const speedBuf = Math.ceil(currentObstacleSpeed.current * 2) + 4;
     const prevBot = prevCharBottom.current;
     const bottomHardLimit = GAME_CONFIG.BOTTOM_POLE_HARD_LIMIT;
 
@@ -502,9 +502,9 @@ export default function GameScreen() {
         const topGraceUsed = currentEdgeGrace;
         if (charTop < gapStart - topGraceUsed) return true;
 
-        if (charBottom > gapEnd) return true;
+        if (charBottom > gapEnd + currentEdgeGrace * 0.3) return true;
 
-        if (prevBot <= gapEnd && charBottom > gapEnd) return true;
+        if (prevBot <= gapEnd + currentEdgeGrace * 0.3 && charBottom > gapEnd + currentEdgeGrace * 0.3) return true;
 
         if (nearEdge && (squeezeActive.current || speedForgiveCurve > 0.2)) {
           squeezeForgiveActive.current = true;
@@ -1292,17 +1292,17 @@ export default function GameScreen() {
       const rawDelta = timestamp - lastTimeRef.current;
       lastTimeRef.current = timestamp;
 
-      if (rawDelta > 200) {
+      if (rawDelta > 100) {
         accumulatorRef.current = GAME_CONFIG.FRAME_RATE;
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
 
-      const delta = Math.min(rawDelta, 34);
+      const delta = Math.min(rawDelta, 48);
       accumulatorRef.current += delta;
 
       let steps = 0;
-      const maxSteps = 4;
+      const maxSteps = 6;
       while (accumulatorRef.current >= GAME_CONFIG.FRAME_RATE && steps < maxSteps) {
         const alive = stepPhysicsRef.current();
         if (!alive) return;
@@ -1310,8 +1310,8 @@ export default function GameScreen() {
         steps++;
       }
 
-      if (accumulatorRef.current > GAME_CONFIG.FRAME_RATE * maxSteps) {
-        accumulatorRef.current = 0;
+      if (accumulatorRef.current > GAME_CONFIG.FRAME_RATE * 2) {
+        accumulatorRef.current = GAME_CONFIG.FRAME_RATE;
       }
 
       rafRef.current = requestAnimationFrame(tick);
