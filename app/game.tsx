@@ -388,11 +388,11 @@ export default function GameScreen() {
     const gapCenterMax = floorY - OBSTACLE_TUNING.GAP_CENTER_MAX_PADDING - gapSize / 2;
     const safeMin = Math.min(gapCenterMin, gapCenterMax);
     const safeMax = Math.max(gapCenterMin, gapCenterMax);
-    const shiftFactor = 0.36 + (lvl.level - 1) * 0.045;
+    const shiftFactor = 0.32 + (lvl.level - 1) * 0.040;
     const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.7);
     const rawTarget = lastGapY.current + (Math.random() - 0.5) * maxShift * 2;
     const midY = (safeMin + safeMax) / 2;
-    const pullToCenter = 0.20;
+    const pullToCenter = 0.28;
     const targetY = rawTarget + (midY - rawTarget) * pullToCenter;
     const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
     lastGapY.current = gapCenter;
@@ -412,7 +412,7 @@ export default function GameScreen() {
 
   const checkCollision = useCallback((cy: number, obs: Obstacle[]): boolean => {
     const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
-    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.90;
+    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.84;
     const cx = getCharX();
     const halfHitX = hitSizeX / 2;
     const halfHitY = hitSizeY / 2;
@@ -447,7 +447,7 @@ export default function GameScreen() {
 
         if (prevBot <= gapEnd && charBottom > gapEnd) return true;
 
-        if (charBottom > gapEnd - 2 && charTop < gapEnd + POLE_CAP_H) return true;
+        if (charBottom > gapEnd - 1 && charTop < gapEnd + POLE_CAP_H) return true;
       }
 
       const shaftHalfW = POLE_SHAFT_W / 2;
@@ -574,16 +574,17 @@ export default function GameScreen() {
     const mp = movementProfileRef.current;
     const gravBase = lvl.fastGravity * mp.gravityMultiplier;
     const velMag = Math.abs(velocity.current);
-    const gravScale = 0.92 + 0.08 * Math.min(1, velMag / 5.0);
+    const gravScale = 0.90 + 0.10 * Math.min(1, velMag / 5.5);
     velocity.current += gravBase * gravScale;
-    velocity.current *= mp.fallDamping;
+    velocity.current *= mp.fallDamping * 0.998;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
-    const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.008);
+    const moveSmooth = 1.0 - Math.min(0.20, velMag * 0.010);
     const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) : 1.0;
-    characterY.current += velocity.current * moveSmooth * riseBoost;
+    const fallSoften = velocity.current > 2.0 ? 0.97 : 1.0;
+    characterY.current += velocity.current * moveSmooth * riseBoost * fallSoften;
 
     const minY = safeTop + 2;
     const maxY = SCREEN_HEIGHT - GROUND_HEIGHT - 2;
@@ -718,13 +719,13 @@ export default function GameScreen() {
 
     if (postGapRelaxTimer.current > 0) {
       postGapRelaxTimer.current--;
-      const relaxDur = 38;
+      const relaxDur = 44;
       const rt = postGapRelaxTimer.current / relaxDur;
       const relaxEase = Math.sin(rt * Math.PI * 0.65);
       const momentumRelax = Math.min(0.10, gallopMomentum.current * 0.02);
       const streakRelax = Math.min(1, rhythmStreak.current / 10) * 0.003;
-      const widenAmt = relaxEase * (0.01 + momentumRelax * 0.004 + streakRelax);
-      const settleAmt = relaxEase * (0.007 + momentumRelax * 0.002 + streakRelax * 0.5);
+      const widenAmt = relaxEase * (0.012 + momentumRelax * 0.005 + streakRelax);
+      const settleAmt = relaxEase * (0.009 + momentumRelax * 0.003 + streakRelax * 0.5);
       stretchXVal *= (1 + widenAmt);
       stretchYVal *= (1 - settleAmt);
     }
