@@ -197,6 +197,7 @@ export default function GameScreen() {
 
   const cruiseBobPhase = useRef(0);
   const cruiseBobVel = useRef(0);
+  const cruiseMomentum = useRef(0);
   const squeezeActive = useRef(false);
   const squeezeIntensity = useRef(0);
   const airflowTimer = useRef(0);
@@ -643,7 +644,11 @@ export default function GameScreen() {
 
     cruiseBobPhase.current += GAME_CONFIG.CRUISE_BOB_SPEED;
     const bobWave = Math.sin(cruiseBobPhase.current) * GAME_CONFIG.CRUISE_BOB_AMPLITUDE;
-    cruiseBobVel.current = cruiseBobVel.current * 0.92 + bobWave * 0.08;
+    const bobWave2 = Math.sin(cruiseBobPhase.current * 0.6 + 1.2) * GAME_CONFIG.CRUISE_BOB_AMPLITUDE * 0.3;
+    cruiseBobVel.current = cruiseBobVel.current * 0.90 + (bobWave + bobWave2) * 0.10;
+
+    cruiseMomentum.current = cruiseMomentum.current * GAME_CONFIG.CRUISE_MOMENTUM_DECAY + GAME_CONFIG.CRUISE_MOMENTUM * 0.006;
+    cruiseMomentum.current = Math.min(cruiseMomentum.current, 0.15);
 
     inGapAssistActive.current = false;
     inGapAssistIntensity.current = 0;
@@ -679,9 +684,10 @@ export default function GameScreen() {
     }
 
     const inGapGravDampen = inGapAssistActive.current ? (1 - inGapAssistIntensity.current * (1 - GAME_CONFIG.IN_GAP_GRAVITY_DAMPEN)) : 1.0;
-    const airflowGravDampen = airflowTimer.current > 0 ? 0.92 : 1.0;
-    velocity.current += gravBase * gravScale * airflowGravDampen * inGapGravDampen;
-    velocity.current += cruiseBobVel.current * 0.12;
+    const airflowGravDampen = airflowTimer.current > 0 ? (0.88 - airflowIntensity.current * 0.06) : 1.0;
+    const cruiseGravSoften = GAME_CONFIG.CRUISE_GRAVITY_SOFTEN + cruiseMomentum.current * 0.3;
+    velocity.current += gravBase * gravScale * airflowGravDampen * inGapGravDampen * cruiseGravSoften;
+    velocity.current += cruiseBobVel.current * 0.15;
     velocity.current *= mp.fallDamping * 0.997;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
@@ -689,9 +695,10 @@ export default function GameScreen() {
 
     const moveSmooth = 1.0 - Math.min(0.20, velMag * 0.009);
     const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.08) : 1.0;
-    const fallSoften = velocity.current > 1.2 ? (0.970 - Math.min(0.018, (velocity.current - 1.2) * 0.004)) : 1.0;
-    const postGapSmooth = postGapRelaxTimer.current > 0 ? 0.965 : 1.0;
-    characterY.current += velocity.current * moveSmooth * riseBoost * fallSoften * postGapSmooth;
+    const fallSoften = velocity.current > 1.2 ? (0.965 - Math.min(0.020, (velocity.current - 1.2) * 0.005)) : 1.0;
+    const postGapSmooth = postGapRelaxTimer.current > 0 ? 0.960 : 1.0;
+    const airflowLinear = airflowTimer.current > 0 ? (1.0 - (airflowTimer.current / GAME_CONFIG.AIRFLOW_DURATION) * GAME_CONFIG.AIRFLOW_LINEAR_STRENGTH * 0.04) : 1.0;
+    characterY.current += velocity.current * moveSmooth * riseBoost * fallSoften * postGapSmooth * airflowLinear;
 
     const minY = safeTop + 2;
     const maxY = SCREEN_HEIGHT - GROUND_HEIGHT - 2;
@@ -961,10 +968,10 @@ export default function GameScreen() {
       if (!po.passed && distToBlob > -POLE_CAP_W * 0.5 && distToBlob < squeezeRange) {
         const proximity = 1 - Math.max(0, distToBlob) / squeezeRange;
         const tenseFactor = proximity * proximity * proximity;
-        const baseSqueezeAmt = 0.032 + speedSqueezeBoost * 0.018;
+        const baseSqueezeAmt = GAME_CONFIG.SQUEEZE_VISUAL_COMPRESS + speedSqueezeBoost * 0.020;
         const squeezeFac = tenseFactor * baseSqueezeAmt * momentumScale * cadenceScale * blobby;
         stretchXVal *= (1 - squeezeFac);
-        stretchYVal *= (1 + squeezeFac * 0.5);
+        stretchYVal *= (1 + squeezeFac * GAME_CONFIG.SQUEEZE_VISUAL_STRETCH / GAME_CONFIG.SQUEEZE_VISUAL_COMPRESS);
 
         if (proximity > 0.5) {
           squeezeActive.current = true;
@@ -978,15 +985,15 @@ export default function GameScreen() {
           stretchYVal *= (1 + forgiveVisual * 0.6);
         }
         break;
-      } else if (po.passed && distToBlob > -POLE_CAP_W * 3.0 && distToBlob < POLE_CAP_W * 0.3) {
+      } else if (po.passed && distToBlob > -POLE_CAP_W * 3.5 && distToBlob < POLE_CAP_W * 0.3) {
         const exitDist = Math.abs(Math.min(0, distToBlob));
-        const exitRange = POLE_CAP_W * 3.0;
+        const exitRange = POLE_CAP_W * 3.5;
         const exitT = 1 - (exitDist / exitRange);
         const exitEase = exitT * exitT * (3 - 2 * exitT);
-        const releaseBase = 0.022 + speedSqueezeBoost * 0.012;
+        const releaseBase = 0.028 + speedSqueezeBoost * 0.015;
         const releaseFactor = exitEase * releaseBase * momentumScale * cadenceScale * blobby;
         stretchXVal *= (1 + releaseFactor);
-        stretchYVal *= (1 - releaseFactor * 0.25);
+        stretchYVal *= (1 - releaseFactor * 0.20);
 
         if (exitT > 0.6) {
           squeezeActive.current = true;
@@ -1009,9 +1016,14 @@ export default function GameScreen() {
       const aft = airflowTimer.current / afDur;
       const afInt = airflowIntensity.current;
       const speedAirflowBoost = 1 + speedAssistCurve * 0.5;
-      const streamline = aft * aft * 0.018 * afInt * speedAirflowBoost;
-      stretchXVal *= (1 - streamline * 0.3);
-      stretchYVal *= (1 + streamline * 0.6);
+      const streamline = aft * aft * 0.022 * afInt * speedAirflowBoost;
+      stretchXVal *= (1 - streamline * 0.35);
+      stretchYVal *= (1 + streamline * 0.7);
+
+      const wobbleReduce = aft * GAME_CONFIG.AIRFLOW_WOBBLE_REDUCE * afInt;
+      if (dirChangeSmooth.current > 0) {
+        dirChangeSmooth.current *= (1 - wobbleReduce * 0.3);
+      }
 
       if (airflowTimer.current <= 0) {
         airflowOpacity.setValue(0);
@@ -1066,20 +1078,23 @@ export default function GameScreen() {
         consecutiveClears.current++;
 
         const speedAirflowExt = Math.max(0, Math.min(1, (speedMultiplier.current - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START) / (GAME_CONFIG.HIGH_SPEED_FORGIVENESS_MAX - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START)));
-        airflowTimer.current = Math.round(GAME_CONFIG.AIRFLOW_DURATION + speedAirflowExt * 6);
-        airflowIntensity.current = Math.min(1.5, 0.55 + consecutiveClears.current * 0.07 + speedAirflowExt * 0.25);
-        airflowOpacity.setValue(0.55);
-        Animated.timing(airflowOpacity, { toValue: 0, duration: 420, useNativeDriver: true }).start();
+        airflowTimer.current = Math.round(GAME_CONFIG.AIRFLOW_DURATION + speedAirflowExt * 8);
+        airflowIntensity.current = Math.min(1.5, 0.60 + consecutiveClears.current * 0.08 + speedAirflowExt * 0.30);
+        airflowOpacity.setValue(0.65);
+        Animated.timing(airflowOpacity, { toValue: 0, duration: 550, useNativeDriver: true }).start();
+
+        cruiseMomentum.current = Math.min(0.15, cruiseMomentum.current + 0.025);
 
         const charCY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
         const streakBaseX = o.x;
         const newStreaks: { x: number; y: number; opacity: number; length: number }[] = [];
         for (let si = 0; si < GAME_CONFIG.AIRFLOW_STREAK_COUNT; si++) {
+          const spreadY = (si / (GAME_CONFIG.AIRFLOW_STREAK_COUNT - 1) - 0.5) * GAME_CONFIG.CHARACTER_SIZE * 0.7;
           newStreaks.push({
-            x: streakBaseX + (Math.random() - 0.5) * 20,
-            y: charCY + (Math.random() - 0.5) * GAME_CONFIG.CHARACTER_SIZE * 0.6,
-            opacity: 0.5 + Math.random() * 0.3,
-            length: 18 + Math.random() * 14,
+            x: streakBaseX - 8 + (Math.random() - 0.5) * 12,
+            y: charCY + spreadY + (Math.random() - 0.5) * 6,
+            opacity: 0.45 + Math.random() * 0.35,
+            length: 22 + Math.random() * 18 + speedAirflowExt * 8,
           });
         }
         airflowStreaks.current = newStreaks;
@@ -1367,7 +1382,7 @@ export default function GameScreen() {
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
       const mp = movementProfileRef.current;
-      velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * GAME_CONFIG.CRUISE_TAP_SOFTNESS;
       charAnim.setValue(characterY.current);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
@@ -1510,7 +1525,7 @@ export default function GameScreen() {
       const mp = movementProfileRef.current;
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
-      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * GAME_CONFIG.CRUISE_TAP_SOFTNESS;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
@@ -1675,6 +1690,7 @@ export default function GameScreen() {
     correctionTap.current = false;
     cruiseBobPhase.current = 0;
     cruiseBobVel.current = 0;
+    cruiseMomentum.current = 0;
     squeezeActive.current = false;
     squeezeIntensity.current = 0;
     squeezeForgiveActive.current = false;
@@ -2007,12 +2023,12 @@ export default function GameScreen() {
                 pointerEvents="none"
                 style={{
                   position: 'absolute' as const,
-                  left: streak.x - streak.length / 2,
+                  left: streak.x - streak.length * 0.6,
                   top: streak.y - 1,
                   width: streak.length,
-                  height: scale(2.5),
-                  borderRadius: scale(1.5),
-                  backgroundColor: blobColor,
+                  height: scale(1.8 + si * 0.3),
+                  borderRadius: scale(1.2),
+                  backgroundColor: si % 2 === 0 ? blobColor : (blobColor + 'AA'),
                   opacity: Animated.multiply(airflowOpacity, streak.opacity),
                 }}
               />
