@@ -195,6 +195,12 @@ export default function GameScreen() {
   const rollbackIntensity = useRef(0);
   const rollbackDirection = useRef(0);
 
+  const cruisePhase = useRef(0);
+  const cruiseMomentum = useRef(0);
+  const airflowTimer = useRef(0);
+  const airflowIntensity = useRef(0);
+  const airflowY = useRef(0);
+
   const lastTapTime = useRef(0);
   const tapInterval = useRef(0);
   const rapidTapCount = useRef(0);
@@ -202,6 +208,9 @@ export default function GameScreen() {
   const postGapRelaxTimer = useRef(0);
   const sustainedFallFrames = useRef(0);
   const correctionTap = useRef(false);
+
+  const airflowStreakOpacity = useRef(new Animated.Value(0)).current;
+  const airflowStreakScale = useRef(new Animated.Value(0)).current;
 
   const charAnim = useRef(new Animated.Value(SCREEN_HEIGHT / 2)).current;
   const charXAnim = useRef(new Animated.Value(0)).current;
@@ -572,13 +581,35 @@ export default function GameScreen() {
 
     const lvl = levelRef.current;
     const mp = movementProfileRef.current;
-    const gravBase = lvl.fastGravity * mp.gravityMultiplier;
+
+    cruisePhase.current += GAME_CONFIG.CRUISE_OSCILLATION_SPEED;
+    if (cruisePhase.current > Math.PI * 2) cruisePhase.current -= Math.PI * 2;
+    const cruiseOsc = Math.sin(cruisePhase.current) * GAME_CONFIG.CRUISE_OSCILLATION_AMP;
+    const cruiseMom = cruiseMomentum.current;
+    const cruiseGravSoft = 1.0 - (cruiseMom * GAME_CONFIG.CRUISE_GRAVITY_SOFTENER * 0.12);
+
+    const gravBase = lvl.fastGravity * mp.gravityMultiplier * Math.max(0.82, cruiseGravSoft);
     const velMag = Math.abs(velocity.current);
     const gravScale = 0.92 + 0.08 * Math.min(1, velMag / 5.0);
     velocity.current += gravBase * gravScale;
+    velocity.current += cruiseOsc * (0.08 + cruiseMom * 0.04);
     velocity.current *= mp.fallDamping;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
+    }
+
+    cruiseMomentum.current = Math.min(1.0, cruiseMomentum.current + GAME_CONFIG.CRUISE_MOMENTUM_BUILD * 0.01);
+    cruiseMomentum.current *= GAME_CONFIG.CRUISE_MOMENTUM_DECAY;
+
+    if (airflowTimer.current > 0) {
+      airflowTimer.current--;
+      const aft = airflowTimer.current / GAME_CONFIG.AIRFLOW_DURATION;
+      const airSmooth = aft * aft * (3 - 2 * aft);
+      const dampFactor = 1.0 - airSmooth * GAME_CONFIG.AIRFLOW_WOBBLE_DAMPEN * airflowIntensity.current;
+      velocity.current *= (1.0 - airSmooth * 0.02 * airflowIntensity.current);
+      if (Math.abs(velocity.current) > 0.3) {
+        velocity.current *= Math.max(0.96, dampFactor);
+      }
     }
 
     const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.008);
@@ -797,6 +828,14 @@ export default function GameScreen() {
       }
     }
 
+    if (airflowTimer.current > 0) {
+      const aft = airflowTimer.current / GAME_CONFIG.AIRFLOW_DURATION;
+      const airEase = aft * aft;
+      const streamline = airEase * GAME_CONFIG.AIRFLOW_STREAMLINE_FACTOR * airflowIntensity.current;
+      stretchXVal *= (1 - streamline * 0.6);
+      stretchYVal *= (1 + streamline * 1.2);
+    }
+
     if (polePulseTimer.current > 0) {
       polePulseTimer.current--;
       const pulseDur = 28;
@@ -938,6 +977,27 @@ export default function GameScreen() {
         const gallopBounce = -0.2 - cadenceBonus - momentumBounce - streakBounce - rhythmFlow - Math.min(0.05, Math.abs(velocity.current) * 0.005);
         if (velocity.current > -2.2) {
           velocity.current += gallopBounce;
+        }
+
+        cruiseMomentum.current = Math.min(1.0, cruiseMomentum.current + GAME_CONFIG.CRUISE_MOMENTUM_BUILD);
+
+        const charCenterYAir = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+        const halfGapAir = o.gapSize / 2;
+        const distFromCenterAir = Math.abs(charCenterYAir - o.gapY);
+        const gapCleanliness = 1.0 - Math.min(1, distFromCenterAir / halfGapAir);
+        if (gapCleanliness > 0.3) {
+          airflowTimer.current = GAME_CONFIG.AIRFLOW_DURATION;
+          airflowIntensity.current = gapCleanliness;
+          airflowY.current = o.gapY;
+          airflowStreakOpacity.setValue(gapCleanliness * 0.8);
+          airflowStreakScale.setValue(0.3);
+          Animated.parallel([
+            Animated.sequence([
+              Animated.timing(airflowStreakScale, { toValue: 1, duration: 120, useNativeDriver: true }),
+              Animated.timing(airflowStreakScale, { toValue: 0.6, duration: 280, useNativeDriver: true }),
+            ]),
+            Animated.timing(airflowStreakOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+          ]).start();
         }
       }
     }
@@ -1322,7 +1382,9 @@ export default function GameScreen() {
       const mp = movementProfileRef.current;
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
-      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      const cruiseSoft = GAME_CONFIG.CRUISE_TAP_SOFTNESS + cruiseMomentum.current * 0.04;
+      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * Math.min(1.05, cruiseSoft);
+      cruiseMomentum.current = Math.min(1.0, cruiseMomentum.current + GAME_CONFIG.CRUISE_MOMENTUM_BUILD * 0.5);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
@@ -1478,6 +1540,13 @@ export default function GameScreen() {
     rollbackTimer.current = 0;
     rollbackIntensity.current = 0;
     rollbackDirection.current = 0;
+    cruisePhase.current = 0;
+    cruiseMomentum.current = 0;
+    airflowTimer.current = 0;
+    airflowIntensity.current = 0;
+    airflowY.current = 0;
+    airflowStreakOpacity.setValue(0);
+    airflowStreakScale.setValue(0);
     lastTapTime.current = 0;
     tapInterval.current = 0;
     rapidTapCount.current = 0;
@@ -1822,6 +1891,49 @@ export default function GameScreen() {
               } : undefined}>
                 <GameBlobSkin skinData={currentSkin} stretchY={charStretchY} stretchX={charStretchX} />
               </Animated.View>
+            </Animated.View>
+
+            <Animated.View
+              pointerEvents="none"
+              style={{
+                position: 'absolute' as const,
+                left: baseX - scale(30),
+                width: scale(60),
+                height: scale(4),
+                opacity: airflowStreakOpacity,
+                transform: [
+                  { translateY: charAnim },
+                  { scaleX: airflowStreakScale },
+                ],
+              }}
+            >
+              <View style={{
+                position: 'absolute' as const,
+                top: 0,
+                left: scale(5),
+                right: scale(5),
+                height: scale(2.5),
+                borderRadius: scale(1.5),
+                backgroundColor: blobColor + '55',
+              }} />
+              <View style={{
+                position: 'absolute' as const,
+                top: scale(-6),
+                left: scale(12),
+                right: scale(12),
+                height: scale(1.5),
+                borderRadius: scale(1),
+                backgroundColor: 'rgba(255,255,255,0.3)',
+              }} />
+              <View style={{
+                position: 'absolute' as const,
+                top: scale(6),
+                left: scale(10),
+                right: scale(10),
+                height: scale(1.5),
+                borderRadius: scale(1),
+                backgroundColor: 'rgba(255,255,255,0.25)',
+              }} />
             </Animated.View>
 
             {showSplat && (
