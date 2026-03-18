@@ -1515,6 +1515,12 @@ export default function GameScreen() {
     cruiseBobPhase.current = 0;
     cruiseMomentum.current = 0;
     gapFlowIndex.current = 0;
+    squeezeAmount.current = 0;
+    airflowTimer.current = 0;
+    airflowIntensity.current = 0;
+    airflowGapY.current = 0;
+    isInGapZone.current = false;
+    gapPassQuality.current = 0;
     levelRef.current = LEVELS[0];
     setCurrentLevel(LEVELS[0]);
     setShowLevelUp(false);
@@ -1697,6 +1703,40 @@ export default function GameScreen() {
 
 
 
+  const airStreaks = useMemo(() => {
+    const aft = airflowTimer.current;
+    const intensity = airflowIntensity.current;
+    if (aft <= 0 || intensity < 0.1) return null;
+    const t = aft / GAME_CONFIG.AIRFLOW_DURATION;
+    const cx = baseX;
+    const cy = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+    const streakColor = blobColor;
+    const streaks: React.ReactNode[] = [];
+    const count = GAME_CONFIG.AIRFLOW_STREAK_COUNT;
+    for (let i = 0; i < count; i++) {
+      const yOff = (i - (count - 1) / 2) * scale(8);
+      const streakLen = scale(18 + t * 22 * intensity);
+      const streakOpacity = t * intensity * (0.35 - i * 0.06);
+      streaks.push(
+        <View
+          key={`airstreak-${i}`}
+          style={{
+            position: 'absolute' as const,
+            left: cx - streakLen - scale(10 + i * 4),
+            top: cy + yOff - scale(1.5),
+            width: streakLen,
+            height: scale(2.5 - i * 0.3),
+            borderRadius: scale(1.5),
+            backgroundColor: streakColor,
+            opacity: Math.max(0, streakOpacity),
+          }}
+        />
+      );
+    }
+    return streaks;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderTick, blobColor, baseX]);
+
   const splatColors = useMemo(() => {
     const base = currentSkin?.bodyColor ?? '#FFD84A';
     return [base, base + 'CC', base + '99', '#FFE97A', base];
@@ -1809,6 +1849,8 @@ export default function GameScreen() {
         <Pressable onPressIn={(e) => handleTapRef.current(e)} testID="game-touch-area" style={styles.touchArea}>
             {renderedClouds}
             {renderedObstacles}
+
+            {gameStatus === 'playing' && airStreaks}
 
             {groundStrip}
 
