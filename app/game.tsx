@@ -197,6 +197,12 @@ export default function GameScreen() {
   const cruiseBobPhase = useRef(0);
   const cruiseMomentum = useRef(0);
 
+  const squeezeActive = useRef(false);
+  const squeezeIntensity = useRef(0);
+  const airFlowTimer = useRef(0);
+  const airFlowStrength = useRef(0);
+  const airFlowGapY = useRef(0);
+
   const lastTapTime = useRef(0);
   const tapInterval = useRef(0);
   const rapidTapCount = useRef(0);
@@ -212,6 +218,7 @@ export default function GameScreen() {
   const charStretchX = useRef(new Animated.Value(1)).current;
   const charStretchY = useRef(new Animated.Value(1)).current;
   const charWobble = useRef(new Animated.Value(0)).current;
+  const airFlowOpacity = useRef(new Animated.Value(0)).current;
 
   const trajectoryOpacity = useRef(new Animated.Value(0)).current;
   const trajectoryFade = useRef<Animated.CompositeAnimation | null>(null);
@@ -414,8 +421,12 @@ export default function GameScreen() {
   }, [safeTop]);
 
   const checkCollision = useCallback((cy: number, obs: Obstacle[]): boolean => {
-    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
-    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.90;
+    const isSqueeze = squeezeActive.current;
+    const squeezeT = Math.min(1, squeezeIntensity.current);
+    const squeezeShrinkX = isSqueeze ? 0.88 - squeezeT * 0.06 : 1.0;
+    const squeezeShrinkY = isSqueeze ? 0.92 - squeezeT * 0.04 : 1.0;
+    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK * squeezeShrinkX;
+    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.90 * squeezeShrinkY;
     const cx = getCharX();
     const halfHitX = hitSizeX / 2;
     const halfHitY = hitSizeY / 2;
@@ -575,26 +586,28 @@ export default function GameScreen() {
 
     const lvl = levelRef.current;
     const mp = movementProfileRef.current;
-    const gravBase = lvl.fastGravity * mp.gravityMultiplier;
+    const gravBase = lvl.fastGravity * mp.gravityMultiplier * 0.88;
     const velMag = Math.abs(velocity.current);
-    const gravScale = 0.88 + 0.12 * Math.min(1, velMag / 6.0);
+    const gravScale = 0.82 + 0.18 * Math.min(1, velMag / 7.0);
     velocity.current += gravBase * gravScale;
-    const cruiseDamp = velocity.current > 0 ? mp.fallDamping * 0.997 : mp.fallDamping;
+    const cruiseDamp = velocity.current > 0 ? mp.fallDamping * 0.994 : mp.fallDamping * 0.998;
     velocity.current *= cruiseDamp;
-    if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
-      velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
+    if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY * 0.92) {
+      velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY * 0.92;
     }
 
-    cruiseBobPhase.current += 0.035;
-    const bobWave = Math.sin(cruiseBobPhase.current) * 0.18;
-    const bobInfluence = Math.max(0, 1 - velMag * 0.25);
-    velocity.current += bobWave * bobInfluence;
+    cruiseBobPhase.current += 0.04;
+    const bobWave = Math.sin(cruiseBobPhase.current) * 0.28;
+    const bobWave2 = Math.sin(cruiseBobPhase.current * 0.6) * 0.12;
+    const bobInfluence = Math.max(0, 1 - velMag * 0.18);
+    velocity.current += (bobWave + bobWave2) * bobInfluence;
 
-    cruiseMomentum.current = cruiseMomentum.current * 0.995 + velMag * 0.005;
-    const momentumSmooth = Math.min(1, cruiseMomentum.current / 4);
-    const moveSmooth = 1.0 - Math.min(0.22, velMag * 0.01) + momentumSmooth * 0.04;
-    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.10) : 1.0;
-    characterY.current += velocity.current * moveSmooth * riseBoost;
+    cruiseMomentum.current = cruiseMomentum.current * 0.993 + velMag * 0.007;
+    const momentumSmooth = Math.min(1, cruiseMomentum.current / 3.5);
+    const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.008) + momentumSmooth * 0.05;
+    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) : 1.0;
+    const cruiseGlide = 1.0 + momentumSmooth * 0.03;
+    characterY.current += velocity.current * moveSmooth * riseBoost * cruiseGlide;
 
     const minY = safeTop + 2;
     const maxY = SCREEN_HEIGHT - GROUND_HEIGHT - 2;
@@ -839,25 +852,49 @@ export default function GameScreen() {
     const momentumScale = 1 + gallopMomentum.current * 0.022;
     const streakFlow = Math.min(1, rhythmStreak.current / 10);
     const cadenceScale = polePassCadence.current > 20 && polePassCadence.current < 150 ? 1.0 + streakFlow * 0.018 : 1.0;
+    squeezeActive.current = false;
+    squeezeIntensity.current *= 0.85;
     for (let pi = 0; pi < nearObs.length; pi++) {
       const po = nearObs[pi];
       const distToBlob = po.x - proxCx;
-      if (!po.passed && distToBlob > 0 && distToBlob < POLE_CAP_W * 3.5) {
-        const proximity = 1 - (distToBlob / (POLE_CAP_W * 3.5));
+      const charCY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+      const halfGap = (po.gapSize ?? GAME_CONFIG.OBSTACLE_GAP) / 2;
+      const gapTight = Math.abs(charCY - po.gapY) / halfGap;
+      if (!po.passed && distToBlob > -POLE_CAP_W * 0.5 && distToBlob < POLE_CAP_W * 4.0) {
+        const proximity = 1 - Math.max(0, distToBlob) / (POLE_CAP_W * 4.0);
         const tenseFactor = proximity * proximity * proximity;
-        const squeezeFactor = tenseFactor * 0.022 * momentumScale * cadenceScale * blobby;
+        const isInGap = distToBlob < POLE_CAP_W * 0.8 && distToBlob > -POLE_CAP_W * 0.3;
+        const squeezeTight = isInGap ? Math.max(0, gapTight - 0.3) * 0.8 : 0;
+        const squeezeFactor = (tenseFactor * 0.028 + squeezeTight * 0.04) * momentumScale * cadenceScale * blobby;
         stretchXVal *= (1 - squeezeFactor);
-        stretchYVal *= (1 + squeezeFactor * 0.35);
+        stretchYVal *= (1 + squeezeFactor * 0.5);
+        if (isInGap && gapTight > 0.35) {
+          squeezeActive.current = true;
+          squeezeIntensity.current = Math.max(squeezeIntensity.current, squeezeTight);
+        }
+        if (isInGap) {
+          const wobbleReduce = 0.7;
+          const velDamp = velocity.current * (1 - proximity * 0.04);
+          velocity.current = velDamp;
+          stretchYVal *= (1 + proximity * 0.008);
+        }
         break;
-      } else if (po.passed && distToBlob > -POLE_CAP_W * 3.0 && distToBlob < 0) {
+      } else if (po.passed && distToBlob > -POLE_CAP_W * 3.5 && distToBlob < 0) {
         const exitDist = Math.abs(distToBlob);
-        const exitT = 1 - (exitDist / (POLE_CAP_W * 3.0));
+        const exitT = 1 - (exitDist / (POLE_CAP_W * 3.5));
         const exitEase = exitT * exitT * (3 - 2 * exitT);
-        const releaseFactor = exitEase * 0.016 * momentumScale * cadenceScale * blobby;
-        stretchXVal *= (1 + releaseFactor);
-        stretchYVal *= (1 - releaseFactor * 0.2);
+        const releaseFactor = exitEase * 0.022 * momentumScale * cadenceScale * blobby;
+        stretchXVal *= (1 + releaseFactor * 1.2);
+        stretchYVal *= (1 - releaseFactor * 0.3);
+        if (exitT > 0.6) {
+          stretchXVal *= (1 + exitEase * 0.008);
+        }
         break;
       }
+    }
+
+    if (airFlowTimer.current > 0) {
+      airFlowTimer.current--;
     }
 
     prevVelSign.current = vel;
@@ -900,6 +937,15 @@ export default function GameScreen() {
         scored = true;
         newlyPassed++;
         spawnFloatingScore(o.x, o.gapY, scoreRef.current);
+
+        const charCenterY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+        const halfGapPass = (o.gapSize ?? GAME_CONFIG.OBSTACLE_GAP) / 2;
+        const gapTightnessPass = Math.abs(charCenterY - o.gapY) / halfGapPass;
+        airFlowTimer.current = 22;
+        airFlowStrength.current = Math.max(0.4, 1.0 - gapTightnessPass * 0.6);
+        airFlowGapY.current = o.gapY;
+        airFlowOpacity.setValue(airFlowStrength.current * 0.7);
+        Animated.timing(airFlowOpacity, { toValue: 0, duration: 380, useNativeDriver: true }).start();
 
         gallopTimer.current = 36;
         gallopRelease.current = 30;
@@ -1334,8 +1380,10 @@ export default function GameScreen() {
       tapSideForce.current = sideForce * 0.8;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
       const velBlend = Math.min(1, Math.abs(velocity.current) / 5);
-      const guidanceEase = 0.88 + velBlend * 0.08;
-      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * guidanceEase;
+      const guidanceEase = 0.82 + velBlend * 0.10;
+      const cruiseBlend = Math.min(1, cruiseMomentum.current / 3);
+      const gentleGuide = 1.0 - cruiseBlend * 0.08;
+      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * guidanceEase * gentleGuide;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
@@ -1500,6 +1548,12 @@ export default function GameScreen() {
     correctionTap.current = false;
     cruiseBobPhase.current = 0;
     cruiseMomentum.current = 0;
+    squeezeActive.current = false;
+    squeezeIntensity.current = 0;
+    airFlowTimer.current = 0;
+    airFlowStrength.current = 0;
+    airFlowGapY.current = 0;
+    airFlowOpacity.setValue(0);
     levelRef.current = LEVELS[0];
     setCurrentLevel(LEVELS[0]);
     setShowLevelUp(false);
@@ -1813,6 +1867,58 @@ export default function GameScreen() {
                 }}
               />
             ))}
+
+            {gameStatus === 'playing' && (
+              <Animated.View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute' as const,
+                  left: baseX - scale(30),
+                  width: scale(60),
+                  height: scale(4),
+                  opacity: airFlowOpacity,
+                  transform: [{ translateY: Animated.add(charAnim, GAME_CONFIG.CHARACTER_SIZE / 2 - scale(2)) }],
+                }}
+              >
+                <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: scale(2), backgroundColor: 'rgba(255,255,255,0.35)', borderRadius: scale(1) }} />
+                <View style={{ position: 'absolute', left: scale(8), right: scale(8), top: scale(3), height: scale(1.5), backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: scale(1) }} />
+              </Animated.View>
+            )}
+
+            {gameStatus === 'playing' && (
+              <Animated.View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute' as const,
+                  left: baseX - scale(45),
+                  width: scale(18),
+                  height: scale(2),
+                  borderRadius: scale(1),
+                  backgroundColor: 'rgba(255,255,255,0.25)',
+                  opacity: airFlowOpacity,
+                  transform: [
+                    { translateY: Animated.add(charAnim, GAME_CONFIG.CHARACTER_SIZE / 2 - scale(8)) },
+                  ],
+                }}
+              />
+            )}
+            {gameStatus === 'playing' && (
+              <Animated.View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute' as const,
+                  left: baseX - scale(40),
+                  width: scale(14),
+                  height: scale(1.5),
+                  borderRadius: scale(1),
+                  backgroundColor: 'rgba(255,255,255,0.18)',
+                  opacity: airFlowOpacity,
+                  transform: [
+                    { translateY: Animated.add(charAnim, GAME_CONFIG.CHARACTER_SIZE / 2 + scale(7)) },
+                  ],
+                }}
+              />
+            )}
 
             <Animated.View
               style={[
