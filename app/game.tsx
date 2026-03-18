@@ -195,6 +195,16 @@ export default function GameScreen() {
   const rollbackIntensity = useRef(0);
   const rollbackDirection = useRef(0);
 
+  const cruiseBobPhase = useRef(0);
+  const cruiseBobVel = useRef(0);
+  const squeezeActive = useRef(false);
+  const squeezeIntensity = useRef(0);
+  const airflowTimer = useRef(0);
+  const airflowIntensity = useRef(0);
+  const airflowStreaks = useRef<{ x: number; y: number; opacity: number; length: number }[]>([]);
+  const gapPatternIndex = useRef(0);
+  const lastGapZone = useRef<'top' | 'mid' | 'bottom'>('mid');
+
   const lastTapTime = useRef(0);
   const tapInterval = useRef(0);
   const rapidTapCount = useRef(0);
@@ -210,6 +220,7 @@ export default function GameScreen() {
   const charStretchX = useRef(new Animated.Value(1)).current;
   const charStretchY = useRef(new Animated.Value(1)).current;
   const charWobble = useRef(new Animated.Value(0)).current;
+  const airflowOpacity = useRef(new Animated.Value(0)).current;
 
   const trajectoryOpacity = useRef(new Animated.Value(0)).current;
   const trajectoryFade = useRef<Animated.CompositeAnimation | null>(null);
@@ -388,12 +399,33 @@ export default function GameScreen() {
     const gapCenterMax = floorY - OBSTACLE_TUNING.GAP_CENTER_MAX_PADDING - gapSize / 2;
     const safeMin = Math.min(gapCenterMin, gapCenterMax);
     const safeMax = Math.max(gapCenterMin, gapCenterMax);
+
+    const zoneThird = (safeMax - safeMin) / 3;
+    const zones = {
+      top: safeMin + zoneThird * 0.5,
+      mid: (safeMin + safeMax) / 2,
+      bottom: safeMax - zoneThird * 0.5,
+    };
+    const patternSequence: ('top' | 'mid' | 'bottom')[] = ['mid', 'top', 'mid', 'bottom', 'mid', 'top', 'bottom', 'mid'];
+    const patIdx = gapPatternIndex.current % patternSequence.length;
+    gapPatternIndex.current++;
+    let preferredZone = patternSequence[patIdx];
+    if (preferredZone === lastGapZone.current && Math.random() < 0.5) {
+      const alternatives = (['top', 'mid', 'bottom'] as const).filter(z => z !== lastGapZone.current);
+      preferredZone = alternatives[Math.floor(Math.random() * alternatives.length)];
+    }
+    lastGapZone.current = preferredZone;
+
+    const zoneCenter = zones[preferredZone];
+    const jitter = (Math.random() - 0.5) * zoneThird * 0.6;
     const shiftFactor = 0.32 + (lvl.level - 1) * 0.040;
     const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.7);
-    const rawTarget = lastGapY.current + (Math.random() - 0.5) * maxShift * 2;
+    const rawTarget = zoneCenter + jitter;
+    const blendWithLast = 0.35;
+    const blended = rawTarget * (1 - blendWithLast) + lastGapY.current * blendWithLast;
     const midY = (safeMin + safeMax) / 2;
-    const pullToCenter = 0.28;
-    const targetY = rawTarget + (midY - rawTarget) * pullToCenter;
+    const pullToCenter = 0.18;
+    const targetY = blended + (midY - blended) * pullToCenter;
     const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
     lastGapY.current = gapCenter;
     const pair = BLOCK_COLOR_PAIRS[obstacleIdCounter.current % BLOCK_COLOR_PAIRS.length];
@@ -411,8 +443,10 @@ export default function GameScreen() {
   }, [safeTop]);
 
   const checkCollision = useCallback((cy: number, obs: Obstacle[]): boolean => {
-    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
-    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.84;
+    const squeezeFactor = squeezeActive.current ? (1 - squeezeIntensity.current * 0.12) : 1;
+    const baseHitShrink = squeezeActive.current ? GAME_CONFIG.SQUEEZE_HITBOX_SHRINK : GAME_CONFIG.HITBOX_SHRINK;
+    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * baseHitShrink * squeezeFactor;
+    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.82 * squeezeFactor;
     const cx = getCharX();
     const halfHitX = hitSizeX / 2;
     const halfHitY = hitSizeY / 2;
@@ -574,9 +608,16 @@ export default function GameScreen() {
     const mp = movementProfileRef.current;
     const gravBase = lvl.fastGravity * mp.gravityMultiplier;
     const velMag = Math.abs(velocity.current);
-    const gravScale = 0.90 + 0.10 * Math.min(1, velMag / 5.5);
-    velocity.current += gravBase * gravScale;
-    velocity.current *= mp.fallDamping * 0.998;
+    const gravScale = 0.88 + 0.12 * Math.min(1, velMag / 5.5);
+
+    cruiseBobPhase.current += GAME_CONFIG.CRUISE_BOB_SPEED;
+    const bobWave = Math.sin(cruiseBobPhase.current) * GAME_CONFIG.CRUISE_BOB_AMPLITUDE;
+    cruiseBobVel.current = cruiseBobVel.current * 0.92 + bobWave * 0.08;
+
+    const airflowGravDampen = airflowTimer.current > 0 ? 0.88 : 1.0;
+    velocity.current += gravBase * gravScale * airflowGravDampen;
+    velocity.current += cruiseBobVel.current * 0.15;
+    velocity.current *= mp.fallDamping * 0.997;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
@@ -829,24 +870,55 @@ export default function GameScreen() {
     const momentumScale = 1 + gallopMomentum.current * 0.022;
     const streakFlow = Math.min(1, rhythmStreak.current / 10);
     const cadenceScale = polePassCadence.current > 20 && polePassCadence.current < 150 ? 1.0 + streakFlow * 0.018 : 1.0;
+
+    squeezeActive.current = false;
+    squeezeIntensity.current = 0;
+
     for (let pi = 0; pi < nearObs.length; pi++) {
       const po = nearObs[pi];
       const distToBlob = po.x - proxCx;
-      if (!po.passed && distToBlob > 0 && distToBlob < POLE_CAP_W * 3.5) {
-        const proximity = 1 - (distToBlob / (POLE_CAP_W * 3.5));
+      const squeezeRange = POLE_CAP_W * GAME_CONFIG.SQUEEZE_PROXIMITY;
+
+      if (!po.passed && distToBlob > -POLE_CAP_W * 0.5 && distToBlob < squeezeRange) {
+        const proximity = 1 - Math.max(0, distToBlob) / squeezeRange;
         const tenseFactor = proximity * proximity * proximity;
-        const squeezeFactor = tenseFactor * 0.022 * momentumScale * cadenceScale * blobby;
-        stretchXVal *= (1 - squeezeFactor);
-        stretchYVal *= (1 + squeezeFactor * 0.35);
+        const squeezeFac = tenseFactor * 0.032 * momentumScale * cadenceScale * blobby;
+        stretchXVal *= (1 - squeezeFac);
+        stretchYVal *= (1 + squeezeFac * 0.5);
+
+        if (proximity > 0.5) {
+          squeezeActive.current = true;
+          squeezeIntensity.current = Math.min(1, (proximity - 0.5) * 2);
+        }
         break;
-      } else if (po.passed && distToBlob > -POLE_CAP_W * 3.0 && distToBlob < 0) {
-        const exitDist = Math.abs(distToBlob);
-        const exitT = 1 - (exitDist / (POLE_CAP_W * 3.0));
+      } else if (po.passed && distToBlob > -POLE_CAP_W * 3.0 && distToBlob < POLE_CAP_W * 0.3) {
+        const exitDist = Math.abs(Math.min(0, distToBlob));
+        const exitRange = POLE_CAP_W * 3.0;
+        const exitT = 1 - (exitDist / exitRange);
         const exitEase = exitT * exitT * (3 - 2 * exitT);
-        const releaseFactor = exitEase * 0.016 * momentumScale * cadenceScale * blobby;
+        const releaseFactor = exitEase * 0.022 * momentumScale * cadenceScale * blobby;
         stretchXVal *= (1 + releaseFactor);
-        stretchYVal *= (1 - releaseFactor * 0.2);
+        stretchYVal *= (1 - releaseFactor * 0.25);
+
+        if (exitT > 0.6) {
+          squeezeActive.current = true;
+          squeezeIntensity.current = Math.min(1, (exitT - 0.6) * 2.5) * 0.6;
+        }
         break;
+      }
+    }
+
+    if (airflowTimer.current > 0) {
+      airflowTimer.current--;
+      const afDur = GAME_CONFIG.AIRFLOW_DURATION;
+      const aft = airflowTimer.current / afDur;
+      const afInt = airflowIntensity.current;
+      const streamline = aft * aft * 0.018 * afInt;
+      stretchXVal *= (1 - streamline * 0.3);
+      stretchYVal *= (1 + streamline * 0.6);
+
+      if (airflowTimer.current <= 0) {
+        airflowOpacity.setValue(0);
       }
     }
 
@@ -896,6 +968,24 @@ export default function GameScreen() {
         gallopRhythmPhase.current = 0.85;
         postGapRelaxTimer.current = 38;
         consecutiveClears.current++;
+
+        airflowTimer.current = GAME_CONFIG.AIRFLOW_DURATION;
+        airflowIntensity.current = Math.min(1.5, 0.7 + consecutiveClears.current * 0.08);
+        airflowOpacity.setValue(0.8);
+        Animated.timing(airflowOpacity, { toValue: 0, duration: 350, useNativeDriver: true }).start();
+
+        const charCY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+        const streakBaseX = o.x;
+        const newStreaks: { x: number; y: number; opacity: number; length: number }[] = [];
+        for (let si = 0; si < GAME_CONFIG.AIRFLOW_STREAK_COUNT; si++) {
+          newStreaks.push({
+            x: streakBaseX + (Math.random() - 0.5) * 20,
+            y: charCY + (Math.random() - 0.5) * GAME_CONFIG.CHARACTER_SIZE * 0.6,
+            opacity: 0.5 + Math.random() * 0.3,
+            length: 18 + Math.random() * 14,
+          });
+        }
+        airflowStreaks.current = newStreaks;
 
         const now = frameCount.current;
         const sinceLast = now - lastPolePassTime.current;
@@ -1486,6 +1576,16 @@ export default function GameScreen() {
     postGapRelaxTimer.current = 0;
     sustainedFallFrames.current = 0;
     correctionTap.current = false;
+    cruiseBobPhase.current = 0;
+    cruiseBobVel.current = 0;
+    squeezeActive.current = false;
+    squeezeIntensity.current = 0;
+    airflowTimer.current = 0;
+    airflowIntensity.current = 0;
+    airflowStreaks.current = [];
+    gapPatternIndex.current = 0;
+    lastGapZone.current = 'mid';
+    airflowOpacity.setValue(0);
     levelRef.current = LEVELS[0];
     setCurrentLevel(LEVELS[0]);
     setShowLevelUp(false);
@@ -1796,6 +1896,23 @@ export default function GameScreen() {
                   backgroundColor: blobColor,
                   opacity: Animated.multiply(trajectoryOpacity, dot.opacity),
                   transform: [{ translateY: Animated.add(charAnim, dot.offsetY + GAME_CONFIG.CHARACTER_SIZE / 2) }],
+                }}
+              />
+            ))}
+
+            {gameStatus === 'playing' && airflowStreaks.current.map((streak, si) => (
+              <Animated.View
+                key={`af-${si}`}
+                pointerEvents="none"
+                style={{
+                  position: 'absolute' as const,
+                  left: streak.x - streak.length / 2,
+                  top: streak.y - 1,
+                  width: streak.length,
+                  height: scale(2.5),
+                  borderRadius: scale(1.5),
+                  backgroundColor: blobColor,
+                  opacity: Animated.multiply(airflowOpacity, streak.opacity),
                 }}
               />
             ))}
