@@ -111,19 +111,13 @@ export const [GameStateProvider, useGameState] = createContextHook(() => {
         newUnlockedSkins.push(skin.id);
       }
     }
-    const isCoinEligible = stats.selectedSkin === 'shadow' || stats.selectedSkin === 'aqua';
-    const MIN_SCORE_FOR_COINS = 8;
     let coinsEarned = 0;
-    if (isCoinEligible && score >= MIN_SCORE_FOR_COINS) {
-      const baseCoins = Math.floor((score - MIN_SCORE_FOR_COINS) * 0.6);
-      let levelBonus = 0;
-      if (score >= 16) levelBonus += 2;
-      if (score >= 24) levelBonus += 4;
-      if (score >= 35) levelBonus += 8;
-      if (score >= 50) levelBonus += 15;
-      const distBonus = Math.floor(distance / 150);
-      coinsEarned = baseCoins + levelBonus + distBonus;
-      coinsEarned = Math.max(0, coinsEarned);
+    if (score >= 100) {
+      coinsEarned = 3;
+    } else if (score >= 50) {
+      coinsEarned = 2;
+    } else if (score >= 25) {
+      coinsEarned = 1;
     }
     const updated: GameStats = {
       bestScore: Math.max(stats.bestScore, score),
