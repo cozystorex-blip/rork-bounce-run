@@ -1598,9 +1598,10 @@ export default function GameScreen() {
     outputRange: ['-22deg', '0deg', '20deg'],
   });
 
+  const wobbleAmt = Math.max(0, movementProfile.wobbleAmount);
   const charWobbleDeg = charWobble.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: [`-${movementProfile.wobbleAmount}deg`, '0deg', `${movementProfile.wobbleAmount}deg`],
+    outputRange: [`${-wobbleAmt}deg`, '0deg', `${wobbleAmt}deg`],
   });
 
   const formattedDist = useFormattedDistance(distance);
@@ -1860,22 +1861,35 @@ export default function GameScreen() {
 
             {groundStrip}
 
-            {gameStatus === 'playing' && trajectoryDots.map((dot, i) => (
+            {gameStatus === 'playing' && (
               <Animated.View
-                key={`tdot-${i}`}
                 pointerEvents="none"
                 style={{
                   position: 'absolute' as const,
-                  left: baseX + dot.offsetX - dot.size / 2,
-                  width: dot.size,
-                  height: dot.size,
-                  borderRadius: dot.size / 2,
-                  backgroundColor: blobColor,
-                  opacity: Animated.multiply(trajectoryOpacity, dot.opacity),
-                  transform: [{ translateY: Animated.add(charAnim, dot.offsetY + GAME_CONFIG.CHARACTER_SIZE / 2) }],
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  opacity: trajectoryOpacity,
                 }}
-              />
-            ))}
+              >
+                {trajectoryDots.map((dot, i) => (
+                  <Animated.View
+                    key={`tdot-${i}`}
+                    style={{
+                      position: 'absolute' as const,
+                      left: baseX + dot.offsetX - dot.size / 2,
+                      width: dot.size,
+                      height: dot.size,
+                      borderRadius: dot.size / 2,
+                      backgroundColor: blobColor,
+                      opacity: dot.opacity,
+                      transform: [{ translateY: Animated.add(charAnim, dot.offsetY + GAME_CONFIG.CHARACTER_SIZE / 2) }],
+                    }}
+                  />
+                ))}
+              </Animated.View>
+            )}
 
             <Animated.View
               style={[
