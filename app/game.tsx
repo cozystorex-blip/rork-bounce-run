@@ -668,7 +668,7 @@ export default function GameScreen() {
           const xProximity = 1 - Math.max(0, gapDistX) / gapAssistRange;
           const yAlignment = 1 - distFromGapCenter / alignThreshold;
           const assistT = Math.min(1, xProximity * yAlignment);
-          const assistStrength = assistT * (0.45 + speedAssistCurve * 0.45);
+          const assistStrength = assistT * (0.30 + speedAssistCurve * 0.30);
           inGapAssistActive.current = true;
           inGapAssistIntensity.current = assistStrength;
           const centeringForce = GAME_CONFIG.IN_GAP_CENTERING_FORCE + speedAssistCurve * GAME_CONFIG.IN_GAP_SPEED_CENTERING_BOOST;
@@ -684,7 +684,7 @@ export default function GameScreen() {
     }
 
     const inGapGravDampen = inGapAssistActive.current ? (1 - inGapAssistIntensity.current * (1 - GAME_CONFIG.IN_GAP_GRAVITY_DAMPEN)) : 1.0;
-    const airflowGravDampen = airflowTimer.current > 0 ? 0.88 : 1.0;
+    const airflowGravDampen = airflowTimer.current > 0 ? 0.92 : 1.0;
     velocity.current += gravBase * gravScale * airflowGravDampen * inGapGravDampen;
     velocity.current += cruiseBobVel.current * 0.12;
     velocity.current *= mp.fallDamping * 0.996;
@@ -759,11 +759,18 @@ export default function GameScreen() {
     const blobProg = Math.min(1, scoreRef.current / 50);
     const blobby = 1 + blobProg * 0.8;
 
+    const speedT = Math.min(1, (speedMultiplier.current - 1) / 2.0);
+    const calmT = Math.max(0, 1 - absVel / 2.5);
+    const cruiseWiden = calmT * GAME_CONFIG.BLOB_CRUISE_WIDEN * (1 + speedT * 0.3) * blobby;
+    const cruiseRound = calmT * GAME_CONFIG.BLOB_CALM_ROUND * blobby;
+    const speedStreamline = speedT * GAME_CONFIG.BLOB_SPEED_STREAMLINE * (1 - calmT * 0.5) * blobby;
+
     if (vel < -0.5) {
       const riseIntensity = Math.min(1, absVel / 6);
       const popEffect = correctionTap.current ? 0.01 : 0;
-      const targetY = Math.min(1.25, 1 + (riseIntensity * 0.024 + popEffect) * blobby);
-      const targetX = Math.max(0.80, 1 - (riseIntensity * 0.014 + popEffect * 0.5) * blobby);
+      const riseCompress = riseIntensity * GAME_CONFIG.BLOB_RISE_COMPRESS * blobby;
+      const targetY = Math.min(1.25, 1 + (riseIntensity * 0.024 + popEffect + riseCompress) * blobby);
+      const targetX = Math.max(0.80, 1 - (riseIntensity * 0.014 + popEffect * 0.5 + riseCompress * 0.6) * blobby + cruiseWiden);
       stretchYVal = prevStretchY.current + (targetY - prevStretchY.current) * stretchLerp;
       stretchXVal = prevStretchX.current + (targetX - prevStretchX.current) * stretchLerp;
     } else if (vel > 0.5) {
@@ -772,13 +779,16 @@ export default function GameScreen() {
       const droopCurve = droopEaseIn * droopEaseIn;
       const sustainBonus = sustainFallT * 0.035;
       const softDroop = Math.min(1, (vel - 0.5) / 4.0) * 0.012;
+      const fallStretch = fallT * GAME_CONFIG.BLOB_FALL_STRETCH * blobby;
       const targetY = Math.max(0.78, 1 - (fallT * 0.055 + droopCurve * 0.07 + sustainBonus + softDroop) * blobby);
-      const targetX = Math.min(1.22, 1 + (fallT * 0.05 + droopCurve * 0.065 + sustainBonus * 0.5 + softDroop * 0.4) * blobby);
+      const targetX = Math.min(1.22, 1 + (fallT * 0.05 + droopCurve * 0.065 + sustainBonus * 0.5 + softDroop * 0.4 + fallStretch) * blobby);
       stretchYVal = prevStretchY.current + (targetY - prevStretchY.current) * stretchLerp;
       stretchXVal = prevStretchX.current + (targetX - prevStretchX.current) * stretchLerp;
     } else {
-      stretchYVal = prevStretchY.current + (1 - prevStretchY.current) * stretchLerp;
-      stretchXVal = prevStretchX.current + (1 - prevStretchX.current) * stretchLerp;
+      const calmTargetX = 1 + cruiseWiden + cruiseRound - speedStreamline * 0.3;
+      const calmTargetY = 1 - cruiseRound * 0.4 + speedStreamline * 0.2;
+      stretchYVal = prevStretchY.current + (calmTargetY - prevStretchY.current) * stretchLerp;
+      stretchXVal = prevStretchX.current + (calmTargetX - prevStretchX.current) * stretchLerp;
     }
 
     if (dirChangeSmooth.current > 0) {
@@ -1061,10 +1071,10 @@ export default function GameScreen() {
         consecutiveClears.current++;
 
         const speedAirflowExt = Math.max(0, Math.min(1, (speedMultiplier.current - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START) / (GAME_CONFIG.HIGH_SPEED_FORGIVENESS_MAX - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START)));
-        airflowTimer.current = Math.round(GAME_CONFIG.AIRFLOW_DURATION + speedAirflowExt * 6);
-        airflowIntensity.current = Math.min(1.8, 0.7 + consecutiveClears.current * 0.08 + speedAirflowExt * 0.3);
-        airflowOpacity.setValue(0.8);
-        Animated.timing(airflowOpacity, { toValue: 0, duration: 350, useNativeDriver: true }).start();
+        airflowTimer.current = Math.round(GAME_CONFIG.AIRFLOW_DURATION + speedAirflowExt * 4);
+        airflowIntensity.current = Math.min(1.4, 0.5 + consecutiveClears.current * 0.06 + speedAirflowExt * 0.2);
+        airflowOpacity.setValue(0.55);
+        Animated.timing(airflowOpacity, { toValue: 0, duration: 420, useNativeDriver: true }).start();
 
         const charCY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
         const streakBaseX = o.x;
@@ -1095,13 +1105,13 @@ export default function GameScreen() {
 
         const streakFactor = Math.min(1, rhythmStreak.current / 10);
         const cadenceQuality = (polePassCadence.current > 20 && polePassCadence.current < 150) ? 1.0 : 0.45;
-        gallopMomentum.current = Math.min(2.4, gallopMomentum.current + (0.14 + streakFactor * 0.10) * cadenceQuality);
+        gallopMomentum.current = Math.min(1.8, gallopMomentum.current + (0.10 + streakFactor * 0.07) * cadenceQuality);
 
-        const clearBoost = GAME_CONFIG.POLE_PASS_SPEED_KICK + streakFactor * 0.025 + cadenceQuality * 0.02;
+        const clearBoost = GAME_CONFIG.POLE_PASS_SPEED_KICK + streakFactor * 0.015 + cadenceQuality * 0.012;
         poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + clearBoost);
 
-        polePulseTimer.current = 28;
-        polePulseIntensity.current = Math.min(1.5, 0.6 + consecutiveClears.current * 0.12 + streakFactor * 0.3);
+        polePulseTimer.current = 32;
+        polePulseIntensity.current = Math.min(1.2, 0.45 + consecutiveClears.current * 0.08 + streakFactor * 0.2);
 
         const charCenterY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
         const halfGap = o.gapSize / 2;
@@ -1114,11 +1124,11 @@ export default function GameScreen() {
           rollbackDirection.current = charCenterY > o.gapY ? 1 : -1;
         }
 
-        const cadenceBonus = polePassCadence.current > 0 ? Math.min(0.04, 60 / Math.max(40, polePassCadence.current) * 0.014) : 0;
-        const momentumBounce = gallopMomentum.current * 0.012;
-        const streakBounce = streakFactor * 0.025;
-        const rhythmFlow = cadenceQuality * 0.014;
-        const gallopBounce = -0.2 - cadenceBonus - momentumBounce - streakBounce - rhythmFlow - Math.min(0.05, Math.abs(velocity.current) * 0.005);
+        const cadenceBonus = polePassCadence.current > 0 ? Math.min(0.03, 60 / Math.max(40, polePassCadence.current) * 0.01) : 0;
+        const momentumBounce = gallopMomentum.current * 0.008;
+        const streakBounce = streakFactor * 0.018;
+        const rhythmFlow = cadenceQuality * 0.01;
+        const gallopBounce = -0.15 - cadenceBonus - momentumBounce - streakBounce - rhythmFlow - Math.min(0.035, Math.abs(velocity.current) * 0.004);
         if (velocity.current > -2.2) {
           velocity.current += gallopBounce;
         }
