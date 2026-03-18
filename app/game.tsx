@@ -479,8 +479,6 @@ export default function GameScreen() {
 
     const capHalfW = POLE_CAP_W / 2;
     const speedBuf = Math.ceil(currentObstacleSpeed.current) + 2;
-    const prevBot = prevCharBottom.current;
-    const bottomHardLimit = GAME_CONFIG.BOTTOM_POLE_HARD_LIMIT;
 
     for (let oi = 0; oi < obs.length; oi++) {
       const o = obs[oi];
@@ -490,6 +488,30 @@ export default function GameScreen() {
 
       const pipeLeft = o.x - capHalfW - speedBuf;
       const pipeRight = o.x + capHalfW;
+
+      if (charRight > pipeLeft && charLeft < pipeRight) {
+        if (charBottom > gapEnd) {
+          return true;
+        }
+      }
+
+      const shaftHalfW = POLE_SHAFT_W / 2;
+      const shaftLeft = o.x - shaftHalfW - speedBuf;
+      const shaftRight = o.x + shaftHalfW;
+      if (charRight > shaftLeft && charLeft < shaftRight) {
+        if (charBottom > gapEnd) {
+          return true;
+        }
+      }
+
+      const baseHalfW = POLE_BASE_W / 2;
+      const baseLeft = o.x - baseHalfW - speedBuf;
+      const baseRight = o.x + baseHalfW;
+      if (charRight > baseLeft && charLeft < baseRight) {
+        if (charBottom > gapEnd) {
+          return true;
+        }
+      }
 
       if (charRight > pipeLeft && charLeft < pipeRight) {
         const distFromGapCenter = Math.abs(centerY - o.gapY);
@@ -502,33 +524,14 @@ export default function GameScreen() {
         const topGraceUsed = currentEdgeGrace;
         if (charTop < gapStart - topGraceUsed) return true;
 
-        if (charBottom > gapEnd) return true;
-
-        if (prevBot <= gapEnd && charBottom > gapEnd) return true;
-
         if (nearEdge && (squeezeActive.current || speedForgiveCurve > 0.2)) {
           squeezeForgiveActive.current = true;
           squeezeForgiveTimer.current = Math.round(12 + speedForgiveCurve * 6);
         }
       }
 
-      const shaftHalfW = POLE_SHAFT_W / 2;
-      const shaftLeft = o.x - shaftHalfW - speedBuf;
-      const shaftRight = o.x + shaftHalfW;
-
       if (charRight > shaftLeft && charLeft < shaftRight) {
         if (charTop < gapStart - POLE_CAP_H) return true;
-        if (charBottom > gapEnd + POLE_CAP_H) return true;
-      }
-
-      const baseHalfW = POLE_BASE_W / 2;
-      const baseLeft = o.x - baseHalfW - speedBuf;
-      const baseRight = o.x + baseHalfW;
-      if (charRight > baseLeft && charLeft < baseRight) {
-        const botShaftTop = gapEnd + POLE_CAP_H;
-        const botShaftH = Math.max(0, floorY - botShaftTop - POLE_BASE_H);
-        const botBaseTop = botShaftTop + botShaftH;
-        if (charBottom > botBaseTop) return true;
       }
     }
     return false;
