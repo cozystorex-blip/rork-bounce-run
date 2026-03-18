@@ -173,6 +173,8 @@ export default function GameScreen() {
 
   const speedMultiplier = useRef(1);
   const tapSpeedBonus = useRef(0);
+  const poleBoostTimer = useRef(0);
+  const poleBoostStrength = useRef(0);
   const frameCount = useRef(0);
   const obstacleIdCounter = useRef(0);
   const lastObstacleSpawn = useRef(0);
@@ -649,8 +651,15 @@ export default function GameScreen() {
 
     tapSpeedBonus.current *= GAME_CONFIG.TAP_SPEED_DECAY;
     if (tapSpeedBonus.current < 0.001) tapSpeedBonus.current = 0;
+    if (poleBoostTimer.current > 0) {
+      poleBoostTimer.current--;
+      if (poleBoostTimer.current <= 0) {
+        poleBoostStrength.current = 0;
+      }
+    }
     const clampedTapBonus = Math.min(tapSpeedBonus.current, GAME_CONFIG.MAX_TAP_SPEED_BONUS);
-    const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus) * lvl.fastSpeedMult;
+    const poleBoost = poleBoostTimer.current > 0 ? poleBoostStrength.current * (poleBoostTimer.current / 12) : 0;
+    const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus + poleBoost) * lvl.fastSpeedMult;
     currentObstacleSpeed.current = currentSpeed;
     const cx = getCharX();
 
@@ -676,6 +685,28 @@ export default function GameScreen() {
         scored = true;
         newlyPassed++;
         spawnFloatingScore(o.x, o.gapY, scoreRef.current);
+
+        const gap = o.gapSize ?? GAME_CONFIG.OBSTACLE_GAP;
+        const charCenter = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+        const distFromCenter = Math.abs(charCenter - o.gapY);
+        const maxDist = gap / 2;
+        const cleanness = Math.max(0, 1 - distFromCenter / maxDist);
+        const boostAmount = 0.18 + cleanness * 0.22;
+        poleBoostStrength.current = boostAmount;
+        poleBoostTimer.current = 12;
+
+        charStretchX.stopAnimation();
+        charStretchY.stopAnimation();
+        Animated.parallel([
+          Animated.sequence([
+            Animated.timing(charStretchX, { toValue: 0.88, duration: 60, useNativeDriver: true }),
+            Animated.spring(charStretchX, { toValue: 1, friction: 5, tension: 140, useNativeDriver: true }),
+          ]),
+          Animated.sequence([
+            Animated.timing(charStretchY, { toValue: 1.14 + cleanness * 0.06, duration: 60, useNativeDriver: true }),
+            Animated.spring(charStretchY, { toValue: 1, friction: 5, tension: 140, useNativeDriver: true }),
+          ]),
+        ]).start();
       }
     }
 
@@ -1107,6 +1138,8 @@ export default function GameScreen() {
     clouds.current = Array.from({ length: 2 }, (_, i) => generateCloud(i, Math.random() * SCREEN_WIDTH));
     speedMultiplier.current = 1;
     tapSpeedBonus.current = 0;
+    poleBoostTimer.current = 0;
+    poleBoostStrength.current = 0;
     frameCount.current = 0;
     obstacleIdCounter.current = 0;
     lastObstacleSpawn.current = 0;
