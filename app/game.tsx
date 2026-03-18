@@ -699,12 +699,12 @@ export default function GameScreen() {
         charStretchY.stopAnimation();
         Animated.parallel([
           Animated.sequence([
-            Animated.timing(charStretchX, { toValue: 0.88, duration: 60, useNativeDriver: true }),
-            Animated.spring(charStretchX, { toValue: 1, friction: 5, tension: 140, useNativeDriver: true }),
+            Animated.timing(charStretchX, { toValue: 1.18 + cleanness * 0.08, duration: 80, useNativeDriver: true }),
+            Animated.spring(charStretchX, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
           ]),
           Animated.sequence([
-            Animated.timing(charStretchY, { toValue: 1.14 + cleanness * 0.06, duration: 60, useNativeDriver: true }),
-            Animated.spring(charStretchY, { toValue: 1, friction: 5, tension: 140, useNativeDriver: true }),
+            Animated.timing(charStretchY, { toValue: 0.86 - cleanness * 0.04, duration: 80, useNativeDriver: true }),
+            Animated.spring(charStretchY, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
           ]),
         ]).start();
       }
