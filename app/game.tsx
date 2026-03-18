@@ -204,6 +204,10 @@ export default function GameScreen() {
   const airflowStreaks = useRef<{ x: number; y: number; opacity: number; length: number }[]>([]);
   const gapPatternIndex = useRef(0);
   const lastGapZone = useRef<'top' | 'mid' | 'bottom'>('mid');
+  const squeezeForgiveActive = useRef(false);
+  const squeezeForgiveTimer = useRef(0);
+  const inGapAssistActive = useRef(false);
+  const inGapAssistIntensity = useRef(0);
 
   const lastTapTime = useRef(0);
   const tapInterval = useRef(0);
@@ -443,10 +447,17 @@ export default function GameScreen() {
   }, [safeTop]);
 
   const checkCollision = useCallback((cy: number, obs: Obstacle[]): boolean => {
-    const squeezeFactor = squeezeActive.current ? (1 - squeezeIntensity.current * 0.12) : 1;
+    const speedRatio = speedMultiplier.current;
+    const forgiveRange = GAME_CONFIG.HIGH_SPEED_FORGIVENESS_MAX - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START;
+    const speedForgiveT = Math.max(0, Math.min(1, (speedRatio - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START) / forgiveRange));
+    const speedForgiveCurve = speedForgiveT * speedForgiveT * (3 - 2 * speedForgiveT);
+
+    const squeezeSpeedBoost = speedForgiveCurve * GAME_CONFIG.SQUEEZE_FORGIVE_SPEED_SCALE;
+    const squeezeFactor = squeezeActive.current ? (1 - (squeezeIntensity.current * 0.12 + squeezeSpeedBoost * 0.06)) : (1 - squeezeSpeedBoost * 0.03);
     const baseHitShrink = squeezeActive.current ? GAME_CONFIG.SQUEEZE_HITBOX_SHRINK : GAME_CONFIG.HITBOX_SHRINK;
-    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * baseHitShrink * squeezeFactor;
-    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.82 * squeezeFactor;
+    const speedHitboxBonus = speedForgiveCurve * GAME_CONFIG.HIGH_SPEED_HITBOX_SHRINK_BONUS;
+    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * (baseHitShrink - speedHitboxBonus) * squeezeFactor;
+    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * (0.82 - speedHitboxBonus * 0.5) * squeezeFactor;
     const cx = getCharX();
     const halfHitX = hitSizeX / 2;
     const halfHitY = hitSizeY / 2;
@@ -455,6 +466,10 @@ export default function GameScreen() {
     const charRight = cx + halfHitX;
     const charTop = centerY - halfHitY;
     const charBottom = centerY + halfHitY;
+
+    const baseEdgeGrace = GAME_CONFIG.HIGH_SPEED_EDGE_GRACE + speedForgiveCurve * (GAME_CONFIG.HIGH_SPEED_EDGE_GRACE_MAX - GAME_CONFIG.HIGH_SPEED_EDGE_GRACE);
+    const squeezeGraceBonus = squeezeActive.current ? squeezeIntensity.current * GAME_CONFIG.SQUEEZE_FORGIVE_MAX_GRACE * (0.5 + speedForgiveCurve * 0.5) : 0;
+    const edgeGrace = baseEdgeGrace + squeezeGraceBonus;
 
     const ceilingY = safeTop;
     const floorY = SCREEN_HEIGHT - GROUND_HEIGHT;
@@ -465,6 +480,7 @@ export default function GameScreen() {
     const capHalfW = POLE_CAP_W / 2;
     const speedBuf = Math.ceil(currentObstacleSpeed.current) + 2;
     const prevBot = prevCharBottom.current;
+    const bottomHardLimit = GAME_CONFIG.BOTTOM_POLE_HARD_LIMIT;
 
     for (let oi = 0; oi < obs.length; oi++) {
       const o = obs[oi];
@@ -476,12 +492,32 @@ export default function GameScreen() {
       const pipeRight = o.x + capHalfW;
 
       if (charRight > pipeLeft && charLeft < pipeRight) {
-        if (charTop < gapStart) return true;
-        if (charBottom > gapEnd) return true;
+        const distFromGapCenter = Math.abs(centerY - o.gapY);
+        const halfGap = gap / 2;
+        const nearEdge = distFromGapCenter > halfGap * 0.6;
+        const inGapAligned = inGapAssistActive.current && inGapAssistIntensity.current > 0.3;
+        const alignBonus = inGapAligned ? edgeGrace * 0.15 : 0;
+        const currentEdgeGrace = nearEdge ? (edgeGrace + alignBonus) : (edgeGrace * 0.3 + alignBonus * 0.5);
 
-        if (prevBot <= gapEnd && charBottom > gapEnd) return true;
+        const topGraceUsed = currentEdgeGrace;
+        if (charTop < gapStart - topGraceUsed) return true;
 
-        if (charBottom > gapEnd - 1 && charTop < gapEnd + POLE_CAP_H) return true;
+        const bottomPenetration = charBottom - gapEnd;
+        const bottomGrace = Math.min(currentEdgeGrace, baseEdgeGrace + bottomHardLimit);
+        if (bottomPenetration > bottomGrace) return true;
+
+        if (prevBot <= gapEnd + bottomGrace && charBottom > gapEnd + bottomGrace) {
+          if (bottomPenetration > bottomGrace) return true;
+        }
+
+        if (charBottom > gapEnd - 1 + bottomGrace && charTop < gapEnd + POLE_CAP_H - bottomGrace * 0.4) {
+          if (charBottom > gapEnd + bottomGrace + 1) return true;
+        }
+
+        if (nearEdge && (squeezeActive.current || speedForgiveCurve > 0.2)) {
+          squeezeForgiveActive.current = true;
+          squeezeForgiveTimer.current = Math.round(12 + speedForgiveCurve * 6);
+        }
       }
 
       const shaftHalfW = POLE_SHAFT_W / 2;
@@ -614,8 +650,42 @@ export default function GameScreen() {
     const bobWave = Math.sin(cruiseBobPhase.current) * GAME_CONFIG.CRUISE_BOB_AMPLITUDE;
     cruiseBobVel.current = cruiseBobVel.current * 0.92 + bobWave * 0.08;
 
+    inGapAssistActive.current = false;
+    inGapAssistIntensity.current = 0;
+    const charCenterForGap = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+    const gapAssistCx = getCharX();
+    const gapAssistRange = POLE_CAP_W * GAME_CONFIG.IN_GAP_ASSIST_RANGE;
+    const speedAssistT = Math.max(0, Math.min(1, (speedMultiplier.current - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START) / (GAME_CONFIG.HIGH_SPEED_FORGIVENESS_MAX - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START)));
+    const speedAssistCurve = speedAssistT * speedAssistT * (3 - 2 * speedAssistT);
+    for (let gi = 0; gi < obstacles.current.length; gi++) {
+      const go = obstacles.current[gi];
+      const gapDistX = go.x - gapAssistCx;
+      if (gapDistX > -POLE_CAP_W * 0.8 && gapDistX < gapAssistRange) {
+        const halfGap = (go.gapSize ?? GAME_CONFIG.OBSTACLE_GAP) / 2;
+        const distFromGapCenter = Math.abs(charCenterForGap - go.gapY);
+        const alignThreshold = halfGap * (0.85 + speedAssistCurve * 0.10);
+        if (distFromGapCenter < alignThreshold) {
+          const xProximity = 1 - Math.max(0, gapDistX) / gapAssistRange;
+          const yAlignment = 1 - distFromGapCenter / alignThreshold;
+          const assistT = Math.min(1, xProximity * yAlignment);
+          const assistStrength = assistT * (0.5 + speedAssistCurve * 0.5);
+          inGapAssistActive.current = true;
+          inGapAssistIntensity.current = assistStrength;
+          const centeringForce = GAME_CONFIG.IN_GAP_CENTERING_FORCE + speedAssistCurve * GAME_CONFIG.IN_GAP_SPEED_CENTERING_BOOST;
+          const centerPull = (go.gapY - charCenterForGap) * centeringForce * assistStrength;
+          velocity.current += centerPull;
+          if (speedAssistCurve > 0.3) {
+            const linearDampen = 1 - (speedAssistCurve * assistStrength * (1 - GAME_CONFIG.IN_GAP_LINEAR_DAMPEN));
+            velocity.current *= linearDampen;
+          }
+          break;
+        }
+      }
+    }
+
+    const inGapGravDampen = inGapAssistActive.current ? (1 - inGapAssistIntensity.current * (1 - GAME_CONFIG.IN_GAP_GRAVITY_DAMPEN)) : 1.0;
     const airflowGravDampen = airflowTimer.current > 0 ? 0.88 : 1.0;
-    velocity.current += gravBase * gravScale * airflowGravDampen;
+    velocity.current += gravBase * gravScale * airflowGravDampen * inGapGravDampen;
     velocity.current += cruiseBobVel.current * 0.15;
     velocity.current *= mp.fallDamping * 0.997;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
@@ -874,6 +944,8 @@ export default function GameScreen() {
     squeezeActive.current = false;
     squeezeIntensity.current = 0;
 
+    const speedSqueezeBoost = speedAssistCurve * 0.4;
+
     for (let pi = 0; pi < nearObs.length; pi++) {
       const po = nearObs[pi];
       const distToBlob = po.x - proxCx;
@@ -882,13 +954,21 @@ export default function GameScreen() {
       if (!po.passed && distToBlob > -POLE_CAP_W * 0.5 && distToBlob < squeezeRange) {
         const proximity = 1 - Math.max(0, distToBlob) / squeezeRange;
         const tenseFactor = proximity * proximity * proximity;
-        const squeezeFac = tenseFactor * 0.032 * momentumScale * cadenceScale * blobby;
+        const baseSqueezeAmt = 0.032 + speedSqueezeBoost * 0.018;
+        const squeezeFac = tenseFactor * baseSqueezeAmt * momentumScale * cadenceScale * blobby;
         stretchXVal *= (1 - squeezeFac);
         stretchYVal *= (1 + squeezeFac * 0.5);
 
         if (proximity > 0.5) {
           squeezeActive.current = true;
-          squeezeIntensity.current = Math.min(1, (proximity - 0.5) * 2);
+          squeezeIntensity.current = Math.min(1, (proximity - 0.5) * 2 + speedSqueezeBoost * 0.3);
+        }
+
+        if (squeezeForgiveActive.current && squeezeForgiveTimer.current > 0) {
+          squeezeForgiveTimer.current--;
+          const forgiveVisual = (squeezeForgiveTimer.current / 18) * speedAssistCurve * 0.015;
+          stretchXVal *= (1 - forgiveVisual);
+          stretchYVal *= (1 + forgiveVisual * 0.6);
         }
         break;
       } else if (po.passed && distToBlob > -POLE_CAP_W * 3.0 && distToBlob < POLE_CAP_W * 0.3) {
@@ -896,13 +976,21 @@ export default function GameScreen() {
         const exitRange = POLE_CAP_W * 3.0;
         const exitT = 1 - (exitDist / exitRange);
         const exitEase = exitT * exitT * (3 - 2 * exitT);
-        const releaseFactor = exitEase * 0.022 * momentumScale * cadenceScale * blobby;
+        const releaseBase = 0.022 + speedSqueezeBoost * 0.012;
+        const releaseFactor = exitEase * releaseBase * momentumScale * cadenceScale * blobby;
         stretchXVal *= (1 + releaseFactor);
         stretchYVal *= (1 - releaseFactor * 0.25);
 
         if (exitT > 0.6) {
           squeezeActive.current = true;
           squeezeIntensity.current = Math.min(1, (exitT - 0.6) * 2.5) * 0.6;
+        }
+
+        if (squeezeForgiveActive.current && squeezeForgiveTimer.current > 0) {
+          squeezeForgiveTimer.current--;
+          if (squeezeForgiveTimer.current <= 0) {
+            squeezeForgiveActive.current = false;
+          }
         }
         break;
       }
@@ -913,7 +1001,8 @@ export default function GameScreen() {
       const afDur = GAME_CONFIG.AIRFLOW_DURATION;
       const aft = airflowTimer.current / afDur;
       const afInt = airflowIntensity.current;
-      const streamline = aft * aft * 0.018 * afInt;
+      const speedAirflowBoost = 1 + speedAssistCurve * 0.5;
+      const streamline = aft * aft * 0.018 * afInt * speedAirflowBoost;
       stretchXVal *= (1 - streamline * 0.3);
       stretchYVal *= (1 + streamline * 0.6);
 
@@ -969,8 +1058,9 @@ export default function GameScreen() {
         postGapRelaxTimer.current = 38;
         consecutiveClears.current++;
 
-        airflowTimer.current = GAME_CONFIG.AIRFLOW_DURATION;
-        airflowIntensity.current = Math.min(1.5, 0.7 + consecutiveClears.current * 0.08);
+        const speedAirflowExt = Math.max(0, Math.min(1, (speedMultiplier.current - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START) / (GAME_CONFIG.HIGH_SPEED_FORGIVENESS_MAX - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START)));
+        airflowTimer.current = Math.round(GAME_CONFIG.AIRFLOW_DURATION + speedAirflowExt * 6);
+        airflowIntensity.current = Math.min(1.8, 0.7 + consecutiveClears.current * 0.08 + speedAirflowExt * 0.3);
         airflowOpacity.setValue(0.8);
         Animated.timing(airflowOpacity, { toValue: 0, duration: 350, useNativeDriver: true }).start();
 
@@ -1580,6 +1670,10 @@ export default function GameScreen() {
     cruiseBobVel.current = 0;
     squeezeActive.current = false;
     squeezeIntensity.current = 0;
+    squeezeForgiveActive.current = false;
+    squeezeForgiveTimer.current = 0;
+    inGapAssistActive.current = false;
+    inGapAssistIntensity.current = 0;
     airflowTimer.current = 0;
     airflowIntensity.current = 0;
     airflowStreaks.current = [];
