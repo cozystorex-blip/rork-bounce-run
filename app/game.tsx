@@ -404,7 +404,13 @@ export default function GameScreen() {
     const safeMin = Math.min(gapCenterMin, gapCenterMax);
     const safeMax = Math.max(gapCenterMin, gapCenterMax);
 
-    const zoneThird = (safeMax - safeMin) / 3;
+    const totalRange = safeMax - safeMin;
+    const spd = Math.max(1, speedMultiplier.current);
+    const speedT = Math.min(1, (spd - 1) / (GAME_CONFIG.MAX_SPEED_MULTIPLIER - 1));
+    const maxShiftRatio = GAME_CONFIG.MAX_GAP_VERTICAL_SHIFT_RATIO - speedT * (GAME_CONFIG.MAX_GAP_VERTICAL_SHIFT_RATIO - GAME_CONFIG.MIN_GAP_VERTICAL_SHIFT_RATIO);
+    const maxVerticalShift = totalRange * maxShiftRatio;
+
+    const zoneThird = totalRange / 3;
     const zones = {
       top: safeMin + zoneThird * 0.5,
       mid: (safeMin + safeMax) / 2,
@@ -421,16 +427,19 @@ export default function GameScreen() {
     lastGapZone.current = preferredZone;
 
     const zoneCenter = zones[preferredZone];
-    const jitter = (Math.random() - 0.5) * zoneThird * 0.6;
+    const jitter = (Math.random() - 0.5) * zoneThird * 0.5;
     const shiftFactor = 0.32 + (lvl.level - 1) * 0.040;
-    const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.7);
     const rawTarget = zoneCenter + jitter;
-    const blendWithLast = 0.35;
+    const blendWithLast = 0.40;
     const blended = rawTarget * (1 - blendWithLast) + lastGapY.current * blendWithLast;
     const midY = (safeMin + safeMax) / 2;
-    const pullToCenter = 0.18;
+    const pullToCenter = 0.22;
     const targetY = blended + (midY - blended) * pullToCenter;
-    const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
+
+    const clampedByRange = Math.max(safeMin, Math.min(safeMax, targetY));
+    const verticalDelta = clampedByRange - lastGapY.current;
+    const clampedDelta = Math.max(-maxVerticalShift, Math.min(maxVerticalShift, verticalDelta));
+    const gapCenter = Math.max(safeMin, Math.min(safeMax, lastGapY.current + clampedDelta));
     lastGapY.current = gapCenter;
     const pair = BLOCK_COLOR_PAIRS[obstacleIdCounter.current % BLOCK_COLOR_PAIRS.length];
     const pipeAngle = 0;
@@ -660,22 +669,23 @@ export default function GameScreen() {
     for (let gi = 0; gi < obstacles.current.length; gi++) {
       const go = obstacles.current[gi];
       const gapDistX = go.x - gapAssistCx;
-      if (gapDistX > -POLE_CAP_W * 0.8 && gapDistX < gapAssistRange) {
+      if (gapDistX > -POLE_CAP_W * 0.6 && gapDistX < gapAssistRange) {
         const halfGap = (go.gapSize ?? GAME_CONFIG.OBSTACLE_GAP) / 2;
         const distFromGapCenter = Math.abs(charCenterForGap - go.gapY);
-        const alignThreshold = halfGap * (0.85 + speedAssistCurve * 0.10);
+        const alignThreshold = halfGap * (0.80 + speedAssistCurve * 0.08);
         if (distFromGapCenter < alignThreshold) {
           const xProximity = 1 - Math.max(0, gapDistX) / gapAssistRange;
           const yAlignment = 1 - distFromGapCenter / alignThreshold;
           const assistT = Math.min(1, xProximity * yAlignment);
-          const assistStrength = assistT * (0.5 + speedAssistCurve * 0.5);
+          const softAssistT = assistT * assistT * (3 - 2 * assistT);
+          const assistStrength = softAssistT * (0.3 + speedAssistCurve * 0.3);
           inGapAssistActive.current = true;
           inGapAssistIntensity.current = assistStrength;
           const centeringForce = GAME_CONFIG.IN_GAP_CENTERING_FORCE + speedAssistCurve * GAME_CONFIG.IN_GAP_SPEED_CENTERING_BOOST;
           const centerPull = (go.gapY - charCenterForGap) * centeringForce * assistStrength;
           velocity.current += centerPull;
-          if (speedAssistCurve > 0.3) {
-            const linearDampen = 1 - (speedAssistCurve * assistStrength * (1 - GAME_CONFIG.IN_GAP_LINEAR_DAMPEN));
+          if (speedAssistCurve > 0.4) {
+            const linearDampen = 1 - (speedAssistCurve * assistStrength * (1 - GAME_CONFIG.IN_GAP_LINEAR_DAMPEN) * 0.6);
             velocity.current *= linearDampen;
           }
           break;
@@ -683,7 +693,7 @@ export default function GameScreen() {
       }
     }
 
-    const inGapGravDampen = inGapAssistActive.current ? (1 - inGapAssistIntensity.current * (1 - GAME_CONFIG.IN_GAP_GRAVITY_DAMPEN)) : 1.0;
+    const inGapGravDampen = inGapAssistActive.current ? (1 - inGapAssistIntensity.current * (1 - GAME_CONFIG.IN_GAP_GRAVITY_DAMPEN) * 0.7) : 1.0;
     const airflowGravDampen = airflowTimer.current > 0 ? 0.88 : 1.0;
     velocity.current += gravBase * gravScale * airflowGravDampen * inGapGravDampen;
     velocity.current += cruiseBobVel.current * 0.15;
