@@ -203,6 +203,11 @@ export default function GameScreen() {
   const sustainedFallFrames = useRef(0);
   const correctionTap = useRef(false);
 
+  const lastTapNormY = useRef(0.5);
+  const tapYInfluence = useRef(0);
+  const tapYDecayTimer = useRef(0);
+  const verticalMomentumBias = useRef(0);
+
   const charAnim = useRef(new Animated.Value(SCREEN_HEIGHT / 2)).current;
   const charXAnim = useRef(new Animated.Value(0)).current;
   const charRotation = useRef(new Animated.Value(0)).current;
@@ -575,14 +580,34 @@ export default function GameScreen() {
     const gravBase = lvl.fastGravity * mp.gravityMultiplier;
     const velMag = Math.abs(velocity.current);
     const gravScale = 0.92 + 0.08 * Math.min(1, velMag / 5.0);
-    velocity.current += gravBase * gravScale;
+
+    if (tapYDecayTimer.current > 0) {
+      tapYDecayTimer.current--;
+      tapYInfluence.current *= 0.94;
+    } else {
+      tapYInfluence.current *= 0.97;
+      if (Math.abs(tapYInfluence.current) < 0.005) tapYInfluence.current = 0;
+    }
+    verticalMomentumBias.current *= 0.985;
+    if (Math.abs(verticalMomentumBias.current) < 0.005) verticalMomentumBias.current = 0;
+
+    const tapGravMod = 1 + tapYInfluence.current * -0.12;
+    const biasPull = verticalMomentumBias.current * -0.08;
+
+    const screenMidY = SCREEN_HEIGHT / 2;
+    const charCenterPos = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+    const posNorm = (charCenterPos - screenMidY) / (SCREEN_HEIGHT * 0.4);
+    const posGravNudge = posNorm * 0.04;
+
+    velocity.current += gravBase * gravScale * tapGravMod + biasPull + posGravNudge;
     velocity.current *= mp.fallDamping;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
     const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.008);
-    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) : 1.0;
+    const riseExtend = tapYInfluence.current > 0.1 ? 1.0 + tapYInfluence.current * 0.08 : 1.0;
+    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) * riseExtend : 1.0;
     characterY.current += velocity.current * moveSmooth * riseBoost;
 
     const minY = safeTop + 2;
@@ -646,11 +671,15 @@ export default function GameScreen() {
     const blobProg = Math.min(1, scoreRef.current / 50);
     const blobby = 1 + blobProg * 0.8;
 
+    const tapVerticalBoost = Math.abs(tapYInfluence.current) * 0.015;
+    const biasStretch = Math.abs(verticalMomentumBias.current) * 0.008;
+
     if (vel < -0.5) {
       const riseIntensity = Math.min(1, absVel / 6);
       const popEffect = correctionTap.current ? 0.01 : 0;
-      const targetY = Math.min(1.25, 1 + (riseIntensity * 0.024 + popEffect) * blobby);
-      const targetX = Math.max(0.80, 1 - (riseIntensity * 0.014 + popEffect * 0.5) * blobby);
+      const tapRiseExtra = tapYInfluence.current > 0 ? tapYInfluence.current * 0.012 : 0;
+      const targetY = Math.min(1.25, 1 + (riseIntensity * 0.024 + popEffect + tapRiseExtra + tapVerticalBoost) * blobby);
+      const targetX = Math.max(0.80, 1 - (riseIntensity * 0.014 + popEffect * 0.5 + tapRiseExtra * 0.4) * blobby);
       stretchYVal = prevStretchY.current + (targetY - prevStretchY.current) * stretchLerp;
       stretchXVal = prevStretchX.current + (targetX - prevStretchX.current) * stretchLerp;
     } else if (vel > 0.6) {
@@ -658,8 +687,9 @@ export default function GameScreen() {
       const droopEaseIn = Math.min(1, (vel - 0.6) / 2.5);
       const droopCurve = droopEaseIn * droopEaseIn;
       const sustainBonus = sustainFallT * 0.03;
-      const targetY = Math.max(0.78, 1 - (fallT * 0.06 + droopCurve * 0.08 + sustainBonus) * blobby);
-      const targetX = Math.min(1.22, 1 + (fallT * 0.055 + droopCurve * 0.07 + sustainBonus * 0.5) * blobby);
+      const tapFallExtra = tapYInfluence.current < 0 ? Math.abs(tapYInfluence.current) * 0.01 : 0;
+      const targetY = Math.max(0.78, 1 - (fallT * 0.06 + droopCurve * 0.08 + sustainBonus + tapFallExtra + biasStretch) * blobby);
+      const targetX = Math.min(1.22, 1 + (fallT * 0.055 + droopCurve * 0.07 + sustainBonus * 0.5 + tapFallExtra * 0.4) * blobby);
       stretchYVal = prevStretchY.current + (targetY - prevStretchY.current) * stretchLerp;
       stretchXVal = prevStretchX.current + (targetX - prevStretchX.current) * stretchLerp;
     } else {
@@ -1172,7 +1202,21 @@ export default function GameScreen() {
     const sideForce = isNeonMap ? 0 : normalizedX * MAX_X_DRIFT * 0.95;
 
     const normalizedY = tapY / SCREEN_HEIGHT;
-    const jumpMod = isNeonMap ? 1 : 1 + (0.5 - normalizedY) * 0.3;
+    const tapYOffset = 0.5 - normalizedY;
+    const tapYCurve = Math.sign(tapYOffset) * Math.pow(Math.abs(tapYOffset), 0.8);
+    const jumpMod = isNeonMap ? 1 : 1 + tapYCurve * 0.55;
+
+    lastTapNormY.current = normalizedY;
+    tapYInfluence.current = tapYOffset;
+    tapYDecayTimer.current = 30;
+
+    if (normalizedY < 0.35) {
+      verticalMomentumBias.current = Math.min(1, verticalMomentumBias.current + 0.35);
+    } else if (normalizedY > 0.65) {
+      verticalMomentumBias.current = Math.max(-0.6, verticalMomentumBias.current - 0.25);
+    } else {
+      verticalMomentumBias.current *= 0.7;
+    }
 
     if (gameStatusRef.current === 'ready') {
       setGameStatus('playing');
@@ -1485,6 +1529,10 @@ export default function GameScreen() {
     postGapRelaxTimer.current = 0;
     sustainedFallFrames.current = 0;
     correctionTap.current = false;
+    lastTapNormY.current = 0.5;
+    tapYInfluence.current = 0;
+    tapYDecayTimer.current = 0;
+    verticalMomentumBias.current = 0;
     levelRef.current = LEVELS[0];
     setCurrentLevel(LEVELS[0]);
     setShowLevelUp(false);
