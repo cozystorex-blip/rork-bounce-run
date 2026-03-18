@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pause, Play, Home, RotateCcw, Trophy, Star, Ruler, Volume2, VolumeX, CupSoda, Coins } from 'lucide-react-native';
 import { BoostIcon, DiveIcon, BarrelIcon, SpinIcon, SuperFlapIcon } from '@/components/TrickIcons';
 import { GameColors } from '@/constants/colors';
-import { GAME_CONFIG, BLOCK_COLOR_PAIRS, LEVELS, LevelConfig, OBSTACLE_TUNING } from '@/constants/game';
+import { GAME_CONFIG, BLOCK_COLOR_PAIRS, LEVELS, LevelConfig, OBSTACLE_TUNING, GLIDE_CONFIG, SQUEEZE_CONFIG, PULSE_CONFIG, DECEL_CONFIG, LINEAR_CONFIG, GALLOP_SPEED_CONFIG } from '@/constants/game';
 import { BADGES } from '@/constants/badges';
 import { useGameState, useFormattedDistance } from '@/providers/GameStateProvider';
 import BlobSkin from '@/components/BlobSkin';
@@ -288,6 +288,28 @@ export default function GameScreen() {
   const prevCharBottom = useRef(SCREEN_HEIGHT / 2);
   const currentObstacleSpeed = useRef(GAME_CONFIG.OBSTACLE_SPEED);
 
+  const glidePhase = useRef(0);
+  const cruiseMomentum = useRef(0);
+
+  const squeezeAmount = useRef(0);
+  const isInGapZone = useRef(false);
+  const gapProximityFactor = useRef(0);
+
+  const polePulseTimer = useRef(0);
+  const polePulseActive = useRef(false);
+
+  const decelFactor = useRef(0);
+
+  const linearDamping = useRef(0);
+
+  const poleSpeedBoost = useRef(0);
+  const gallopMomentum = useRef(0);
+  const rhythmStreak = useRef(0);
+  const lastPoleFrame = useRef(0);
+  const consecutiveClears = useRef(0);
+  const gallopTimer = useRef(0);
+  const gallopBounceActive = useRef(false);
+
   const isNeonMap = mapTheme.id === 'neon';
   const baseX = isNeonMap ? FLAPPY_BASE_X : CHARACTER_BASE_X;
 
@@ -385,7 +407,8 @@ export default function GameScreen() {
   }, [safeTop]);
 
   const checkCollision = useCallback((cy: number, obs: Obstacle[]): boolean => {
-    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
+    const squeezeShrink = 1 - squeezeAmount.current * (SQUEEZE_CONFIG.HITBOX_SHRINK_MAX / SQUEEZE_CONFIG.MAX_SQUEEZE_X);
+    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK * squeezeShrink;
     const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.97;
     const cx = getCharX();
     const halfHitX = hitSizeX / 2;
@@ -546,14 +569,23 @@ export default function GameScreen() {
 
     const lvl = levelRef.current;
     const mp = movementProfileRef.current;
-    const gravBase = lvl.fastGravity * mp.gravityMultiplier;
-    const velSign = velocity.current < 0 ? -1 : 1;
+
+    glidePhase.current += GLIDE_CONFIG.BOB_FREQUENCY;
+    const glideBob = Math.sin(glidePhase.current) * GLIDE_CONFIG.BOB_AMPLITUDE;
+    const glideSecondary = Math.sin(glidePhase.current * 1.7) * GLIDE_CONFIG.BOB_AMPLITUDE * 0.3;
+
+    const gravBase = lvl.fastGravity * mp.gravityMultiplier * (1 - linearDamping.current * 0.12);
     const velMag = Math.abs(velocity.current);
     const gravCurve = velocity.current < 0
       ? gravBase * (0.88 + 0.12 * Math.min(1, velMag / 5))
       : gravBase * (1.0 + 0.04 * Math.min(1, velMag / 4));
     velocity.current += gravCurve;
     velocity.current *= mp.fallDamping;
+
+    velocity.current += (glideBob + glideSecondary) * 0.08;
+    cruiseMomentum.current *= GLIDE_CONFIG.MOMENTUM_DAMPING;
+    velocity.current += cruiseMomentum.current * 0.02;
+
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
@@ -565,6 +597,14 @@ export default function GameScreen() {
     } else {
       const fallEase = 1.0 - Math.max(0, (velocity.current - 2.5) * 0.022);
       characterY.current += velocity.current * Math.max(0.87, fallEase);
+    }
+
+    if (gallopBounceActive.current && gallopTimer.current > 0) {
+      gallopTimer.current--;
+      const t = gallopTimer.current / GALLOP_SPEED_CONFIG.GALLOP_TIMER_FRAMES;
+      const bounceWave = Math.sin(t * Math.PI) * 0.15 * gallopMomentum.current;
+      velocity.current -= bounceWave;
+      if (gallopTimer.current <= 0) gallopBounceActive.current = false;
     }
 
     const minY = safeTop + 2;
@@ -609,24 +649,104 @@ export default function GameScreen() {
       charXAnim.setValue(xDrift.current);
     }
 
-    const absVel = Math.abs(vel);
-    const stretchYVal = Math.min(1.28, 1 + absVel * 0.02);
-    const stretchXVal = Math.max(0.8, 1 - absVel * 0.012);
-    if (Math.abs(stretchYVal - prevStretchY.current) > 0.06) {
-      charStretchY.setValue(stretchYVal);
-      prevStretchY.current = stretchYVal;
+    const cx = getCharX();
+    const charCenterY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+    let nearestPoleDist = 9999;
+    let nearestGapY = 0;
+    let nearestGapSize = 0;
+    let inGap = false;
+    const obs = obstacles.current;
+
+    for (let pi = 0; pi < obs.length; pi++) {
+      const o = obs[pi];
+      const dist = Math.abs(o.x - cx);
+      if (dist < nearestPoleDist) {
+        nearestPoleDist = dist;
+        nearestGapY = o.gapY;
+        nearestGapSize = o.gapSize ?? GAME_CONFIG.OBSTACLE_GAP;
+        inGap = cx > o.x - POLE_CAP_W && cx < o.x + POLE_CAP_W;
+      }
     }
-    if (Math.abs(stretchXVal - prevStretchX.current) > 0.06) {
-      charStretchX.setValue(stretchXVal);
-      prevStretchX.current = stretchXVal;
+
+    const approachRange = POLE_CAP_W * SQUEEZE_CONFIG.APPROACH_RANGE;
+    const exitRange = POLE_CAP_W * SQUEEZE_CONFIG.EXIT_RANGE;
+    let targetSqueeze = 0;
+    let targetLinear = 0;
+    let targetDecel = 0;
+
+    if (nearestPoleDist < approachRange) {
+      const halfGap = nearestGapSize / 2;
+      const distFromCenter = Math.abs(charCenterY - nearestGapY);
+      const tightness = Math.min(1, distFromCenter / halfGap);
+      const proximity = 1 - nearestPoleDist / approachRange;
+      const proxCurve = proximity * proximity;
+
+      targetSqueeze = proxCurve * tightness * SQUEEZE_CONFIG.MAX_SQUEEZE_X;
+      isInGapZone.current = inGap;
+
+      if (inGap) {
+        targetLinear = LINEAR_CONFIG.DAMPING_IN_GAP * (1 + tightness * 0.5);
+        targetDecel = DECEL_CONFIG.MAX_SLOW * proxCurve * (0.5 + tightness * 0.5);
+      } else if (nearestPoleDist < POLE_CAP_W * DECEL_CONFIG.APPROACH_RANGE) {
+        const decelProx = 1 - nearestPoleDist / (POLE_CAP_W * DECEL_CONFIG.APPROACH_RANGE);
+        targetDecel = DECEL_CONFIG.MAX_SLOW * decelProx * 0.6;
+      }
+    } else {
+      isInGapZone.current = false;
+    }
+
+    squeezeAmount.current += (targetSqueeze - squeezeAmount.current) * SQUEEZE_CONFIG.LERP_SPEED;
+    linearDamping.current += (targetLinear - linearDamping.current) * 0.12;
+    decelFactor.current += (targetDecel - decelFactor.current) * DECEL_CONFIG.RECOVERY_SPEED * 3;
+    if (targetDecel < decelFactor.current) {
+      decelFactor.current += (targetDecel - decelFactor.current) * DECEL_CONFIG.RECOVERY_SPEED;
+    }
+
+    gallopMomentum.current *= GALLOP_SPEED_CONFIG.MOMENTUM_DECAY;
+    poleSpeedBoost.current *= GALLOP_SPEED_CONFIG.POLE_BONUS_DECAY;
+
+    if (polePulseActive.current && polePulseTimer.current > 0) {
+      polePulseTimer.current--;
+      if (polePulseTimer.current <= 0) polePulseActive.current = false;
+    }
+
+    const absVel = Math.abs(vel);
+    const linearReduce = 1 - linearDamping.current * LINEAR_CONFIG.STRETCH_REDUCE;
+    const sqzX = squeezeAmount.current;
+    const sqzY = squeezeAmount.current * (SQUEEZE_CONFIG.MAX_SQUEEZE_Y / SQUEEZE_CONFIG.MAX_SQUEEZE_X);
+
+    let targetStretchY = Math.min(1.28, 1 + absVel * 0.02) * linearReduce;
+    let targetStretchX = Math.max(0.8, 1 - absVel * 0.012) * linearReduce;
+
+    targetStretchX = targetStretchX * (1 - sqzX) + (1 - sqzX * 1.5) * sqzX;
+    targetStretchY = targetStretchY * (1 - sqzY) + (1 + sqzY * 1.2) * sqzY;
+
+    if (vel > 0.5) {
+      const fallT = Math.min(1, vel / 5);
+      const droopSquash = fallT * fallT * 0.06;
+      targetStretchX += droopSquash;
+      targetStretchY -= droopSquash * 0.8;
+    }
+
+    const smoothX = prevStretchX.current + (targetStretchX - prevStretchX.current) * 0.18;
+    const smoothY = prevStretchY.current + (targetStretchY - prevStretchY.current) * 0.18;
+
+    if (Math.abs(smoothY - prevStretchY.current) > 0.003) {
+      charStretchY.setValue(smoothY);
+      prevStretchY.current = smoothY;
+    }
+    if (Math.abs(smoothX - prevStretchX.current) > 0.003) {
+      charStretchX.setValue(smoothX);
+      prevStretchX.current = smoothX;
     }
 
     tapSpeedBonus.current *= GAME_CONFIG.TAP_SPEED_DECAY;
     if (tapSpeedBonus.current < 0.001) tapSpeedBonus.current = 0;
     const clampedTapBonus = Math.min(tapSpeedBonus.current, GAME_CONFIG.MAX_TAP_SPEED_BONUS);
-    const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus) * lvl.fastSpeedMult;
+    const decelMult = 1 - decelFactor.current;
+    const gallopSpeedBonus = Math.min(poleSpeedBoost.current, GALLOP_SPEED_CONFIG.MAX_POLE_BONUS);
+    const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus + gallopSpeedBonus) * lvl.fastSpeedMult * decelMult;
     currentObstacleSpeed.current = currentSpeed;
-    const cx = getCharX();
 
     const obs = obstacles.current;
     const obsLen = obs.length;
@@ -650,6 +770,61 @@ export default function GameScreen() {
         scored = true;
         newlyPassed++;
         spawnFloatingScore(o.x, o.gapY, scoreRef.current);
+
+        consecutiveClears.current++;
+        const frameSinceLast = frameCount.current - lastPoleFrame.current;
+        lastPoleFrame.current = frameCount.current;
+
+        let cadenceQuality = 0.5;
+        if (frameSinceLast > GALLOP_SPEED_CONFIG.CADENCE_WINDOW_MIN && frameSinceLast < GALLOP_SPEED_CONFIG.CADENCE_WINDOW_MAX) {
+          cadenceQuality = 1.0 - Math.abs(frameSinceLast - 70) / 80;
+          cadenceQuality = Math.max(0.3, Math.min(1, cadenceQuality));
+          rhythmStreak.current = Math.min(GALLOP_SPEED_CONFIG.MAX_STREAK, rhythmStreak.current + 0.8);
+        } else {
+          rhythmStreak.current = Math.max(0, rhythmStreak.current - 1.5);
+        }
+
+        gallopMomentum.current = Math.min(
+          GALLOP_SPEED_CONFIG.MOMENTUM_MAX,
+          gallopMomentum.current + GALLOP_SPEED_CONFIG.MOMENTUM_PER_CLEAR * (1 + cadenceQuality * 0.5)
+        );
+
+        const streakFactor = rhythmStreak.current / GALLOP_SPEED_CONFIG.MAX_STREAK;
+        const speedKick = GALLOP_SPEED_CONFIG.POLE_SPEED_KICK
+          + streakFactor * GALLOP_SPEED_CONFIG.STREAK_BONUS
+          + cadenceQuality * 0.008;
+        poleSpeedBoost.current = Math.min(
+          GALLOP_SPEED_CONFIG.MAX_POLE_BONUS,
+          poleSpeedBoost.current + speedKick
+        );
+
+        const bounceForce = GALLOP_SPEED_CONFIG.GALLOP_BOUNCE
+          * (1 + streakFactor * 0.3 + gallopMomentum.current * 0.08);
+        velocity.current += Math.max(-2.5, bounceForce);
+        gallopBounceActive.current = true;
+        gallopTimer.current = GALLOP_SPEED_CONFIG.GALLOP_TIMER_FRAMES;
+
+        polePulseActive.current = true;
+        polePulseTimer.current = 18;
+        charStretchX.stopAnimation();
+        charStretchY.stopAnimation();
+        const pulseIntensity = 1 + consecutiveClears.current * 0.04 + streakFactor * 0.15;
+        const expandX = PULSE_CONFIG.EXPAND_SCALE + (pulseIntensity - 1) * 0.08;
+        const expandY = PULSE_CONFIG.EXPAND_SCALE + (pulseIntensity - 1) * 0.06;
+        const contractX = PULSE_CONFIG.CONTRACT_SCALE - (pulseIntensity - 1) * 0.03;
+        const contractY = PULSE_CONFIG.CONTRACT_SCALE - (pulseIntensity - 1) * 0.04;
+        Animated.parallel([
+          Animated.sequence([
+            Animated.timing(charStretchX, { toValue: expandX, duration: PULSE_CONFIG.EXPAND_DURATION, useNativeDriver: true }),
+            Animated.timing(charStretchX, { toValue: contractX, duration: PULSE_CONFIG.CONTRACT_DURATION, useNativeDriver: true }),
+            Animated.spring(charStretchX, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
+          ]),
+          Animated.sequence([
+            Animated.timing(charStretchY, { toValue: expandY, duration: PULSE_CONFIG.EXPAND_DURATION, useNativeDriver: true }),
+            Animated.timing(charStretchY, { toValue: contractY, duration: PULSE_CONFIG.CONTRACT_DURATION, useNativeDriver: true }),
+            Animated.spring(charStretchY, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
+          ]),
+        ]).start();
       }
     }
 
@@ -709,10 +884,12 @@ export default function GameScreen() {
       lastObstacleSpawn.current = 0;
     }
 
-    const distBasedProgress = distanceRef.current * 0.00012;
+    const distBasedProgress = distanceRef.current * 0.00015;
+    const scoreProgress = Math.sqrt(scoreRef.current) * 0.035;
+    const momentumBoost = gallopMomentum.current * 0.025;
     speedMultiplier.current = Math.min(
-      GAME_CONFIG.MAX_SPEED_MULTIPLIER,
-      1 + distBasedProgress
+      GAME_CONFIG.MAX_SPEED_MULTIPLIER + 1.5,
+      1 + distBasedProgress + scoreProgress + momentumBoost
     );
 
     distanceRef.current += currentSpeed * 0.1;
@@ -735,7 +912,7 @@ export default function GameScreen() {
     }
 
     renderThrottleRef.current++;
-    if (renderThrottleRef.current >= 3) {
+    if (renderThrottleRef.current >= 2) {
       renderThrottleRef.current = 0;
       renderTickRef.current++;
       if (scoreChangedRef.current) {
@@ -995,7 +1172,9 @@ export default function GameScreen() {
       const mp = movementProfileRef.current;
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
-      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      const tapSoftener = isInGapZone.current ? GLIDE_CONFIG.CRUISE_TAP_SOFTENER : 1.0;
+      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05 * tapSoftener;
+      cruiseMomentum.current = Math.min(1.5, cruiseMomentum.current + 0.35);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
@@ -1068,6 +1247,22 @@ export default function GameScreen() {
     prevCharY.current = SCREEN_HEIGHT / 2;
     prevCharBottom.current = SCREEN_HEIGHT / 2;
     currentObstacleSpeed.current = GAME_CONFIG.OBSTACLE_SPEED;
+    glidePhase.current = 0;
+    cruiseMomentum.current = 0;
+    squeezeAmount.current = 0;
+    isInGapZone.current = false;
+    gapProximityFactor.current = 0;
+    polePulseTimer.current = 0;
+    polePulseActive.current = false;
+    decelFactor.current = 0;
+    linearDamping.current = 0;
+    poleSpeedBoost.current = 0;
+    gallopMomentum.current = 0;
+    rhythmStreak.current = 0;
+    lastPoleFrame.current = 0;
+    consecutiveClears.current = 0;
+    gallopTimer.current = 0;
+    gallopBounceActive.current = false;
     lastTrickTime.current = 0;
     trickCombo.current = 0;
     setComboCount(0);
