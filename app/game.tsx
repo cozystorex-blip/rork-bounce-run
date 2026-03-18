@@ -259,14 +259,14 @@ export default function GameScreen() {
   useEffect(() => {
     const pulseX = Animated.loop(
       Animated.sequence([
-        Animated.timing(charStretchX, { toValue: 1.06, duration: 1000, useNativeDriver: true }),
-        Animated.timing(charStretchX, { toValue: 0.96, duration: 1000, useNativeDriver: true }),
+        Animated.timing(charStretchX, { toValue: 1.04, duration: 1200, useNativeDriver: true }),
+        Animated.timing(charStretchX, { toValue: 0.97, duration: 1200, useNativeDriver: true }),
       ])
     );
     const pulseY = Animated.loop(
       Animated.sequence([
-        Animated.timing(charStretchY, { toValue: 0.95, duration: 1000, useNativeDriver: true }),
-        Animated.timing(charStretchY, { toValue: 1.05, duration: 1000, useNativeDriver: true }),
+        Animated.timing(charStretchY, { toValue: 0.96, duration: 1200, useNativeDriver: true }),
+        Animated.timing(charStretchY, { toValue: 1.04, duration: 1200, useNativeDriver: true }),
       ])
     );
     pulseX.start();
@@ -728,7 +728,7 @@ export default function GameScreen() {
     prevCharY.current = characterY.current;
 
     charAnim.setValue(characterY.current);
-    const rotVal = Math.max(-1, Math.min(1, velocity.current / 8));
+    const rotVal = Math.max(-1, Math.min(1, velocity.current / 10));
     if (Math.abs(rotVal - prevRotVal.current) > 0.05) {
       charRotation.setValue(rotVal);
       prevRotVal.current = rotVal;
@@ -995,20 +995,22 @@ export default function GameScreen() {
       const mp = movementProfileRef.current;
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
-      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      const curVel = velocity.current;
+      const blend = curVel > 0 ? 0.88 : 0.75;
+      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 0.95 * blend + curVel * (1 - blend);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(charStretchX, { toValue: 1 + (1 - mp.flapSquashX) * 1.1, duration: Math.max(40, mp.flapSquashDuration * 0.6), useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 0.94, friction: mp.flapSpringFriction * 0.6, tension: mp.flapSpringTension * 1.3, useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 0.8, useNativeDriver: true }),
+          Animated.timing(charStretchX, { toValue: 1 + (1 - mp.flapSquashX) * 0.8, duration: Math.max(55, mp.flapSquashDuration * 0.65), useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 0.96, friction: mp.flapSpringFriction * 0.7, tension: mp.flapSpringTension * 1.1, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 1, friction: mp.flapSpringFriction * 1.1, tension: mp.flapSpringTension * 0.7, useNativeDriver: true }),
         ]),
         Animated.sequence([
-          Animated.timing(charStretchY, { toValue: mp.flapSquashX * 0.95, duration: Math.max(40, mp.flapSquashDuration * 0.6), useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1.06, friction: mp.flapSpringFriction * 0.6, tension: mp.flapSpringTension * 1.3, useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 0.8, useNativeDriver: true }),
+          Animated.timing(charStretchY, { toValue: mp.flapSquashX * 0.97, duration: Math.max(55, mp.flapSquashDuration * 0.65), useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1.04, friction: mp.flapSpringFriction * 0.7, tension: mp.flapSpringTension * 1.1, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1, friction: mp.flapSpringFriction * 1.1, tension: mp.flapSpringTension * 0.7, useNativeDriver: true }),
         ]),
       ]).start();
     }
@@ -1091,6 +1093,8 @@ export default function GameScreen() {
     isFastPhase.current = true;
     phaseBlend.current = 1.0;
     phaseTransitionCounter.current = 0;
+    cruiseBobPhase.current = 0;
+    lastGapZone.current = 'mid';
     levelRef.current = LEVELS[0];
     setCurrentLevel(LEVELS[0]);
     setShowLevelUp(false);
