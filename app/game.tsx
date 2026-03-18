@@ -195,6 +195,14 @@ export default function GameScreen() {
   const rollbackIntensity = useRef(0);
   const rollbackDirection = useRef(0);
 
+  const hardZoneActive = useRef(false);
+  const hardZoneIntensity = useRef(0);
+  const hardZonePopupTimer = useRef(0);
+  const [showHardZonePopup, setShowHardZonePopup] = useState<boolean>(false);
+  const hardZonePopupAnim = useRef(new Animated.Value(0)).current;
+  const hardZonePopupScale = useRef(new Animated.Value(0.5)).current;
+  const lastHardZonePopupScore = useRef(0);
+
   const cruiseBobPhase = useRef(0);
   const cruiseMomentum = useRef(0);
   const glideTimer = useRef(0);
@@ -889,26 +897,79 @@ export default function GameScreen() {
     const momentumScale = 1 + gallopMomentum.current * 0.022;
     const streakFlow = Math.min(1, rhythmStreak.current / 10);
     const cadenceScale = polePassCadence.current > 20 && polePassCadence.current < 150 ? 1.0 + streakFlow * 0.018 : 1.0;
+
+    const levelDifficultyT = Math.min(1, (lvl.level - 1) / 6);
+    const hardSqueezeBoost = 1.0 + levelDifficultyT * 1.2;
+    const hardReleaseBoost = 1.0 + levelDifficultyT * 0.8;
+
+    let isApproachingPole = false;
+    let approachTightness = 0;
+
     for (let pi = 0; pi < nearObs.length; pi++) {
       const po = nearObs[pi];
       const distToBlob = po.x - proxCx;
       if (!po.passed && distToBlob > 0 && distToBlob < POLE_CAP_W * 3.5) {
         const proximity = 1 - (distToBlob / (POLE_CAP_W * 3.5));
         const tenseFactor = proximity * proximity * proximity;
-        const squeezeFactor = tenseFactor * 0.022 * momentumScale * cadenceScale * blobby;
+        const squeezeFactor = tenseFactor * 0.022 * momentumScale * cadenceScale * blobby * hardSqueezeBoost;
         stretchXVal *= (1 - squeezeFactor);
         stretchYVal *= (1 + squeezeFactor * 0.35);
+
+        const charCY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+        const halfGapApproach = po.gapSize / 2;
+        const distFromGapCenter = Math.abs(charCY - po.gapY);
+        approachTightness = distFromGapCenter / halfGapApproach;
+        isApproachingPole = proximity > 0.4 && approachTightness > 0.5;
+
+        if (isApproachingPole && lvl.level >= 3) {
+          const tightSqueeze = Math.min(1, (approachTightness - 0.5) / 0.4);
+          const emergencySqueeze = tightSqueeze * tenseFactor * 0.015 * levelDifficultyT;
+          stretchXVal *= (1 - emergencySqueeze);
+          stretchYVal *= (1 + emergencySqueeze * 0.6);
+        }
         break;
       } else if (po.passed && distToBlob > -POLE_CAP_W * 3.0 && distToBlob < 0) {
         const exitDist = Math.abs(distToBlob);
         const exitT = 1 - (exitDist / (POLE_CAP_W * 3.0));
         const exitEase = exitT * exitT * (3 - 2 * exitT);
-        const releaseFactor = exitEase * 0.016 * momentumScale * cadenceScale * blobby;
+        const releaseFactor = exitEase * 0.016 * momentumScale * cadenceScale * blobby * hardReleaseBoost;
         stretchXVal *= (1 + releaseFactor);
         stretchYVal *= (1 - releaseFactor * 0.2);
+
+        if (lvl.level >= 4 && exitT > 0.6) {
+          const popRelease = (exitT - 0.6) / 0.4;
+          const popBounce = popRelease * 0.008 * levelDifficultyT;
+          stretchYVal *= (1 + popBounce);
+          stretchXVal *= (1 - popBounce * 0.4);
+        }
         break;
       }
     }
+
+    if (isApproachingPole && lvl.level >= 4 && approachTightness > 0.6 && scoreRef.current > lastHardZonePopupScore.current + 3) {
+      hardZoneActive.current = true;
+      hardZoneIntensity.current = Math.min(1, (approachTightness - 0.6) / 0.3 * levelDifficultyT);
+      if (hardZonePopupTimer.current <= 0) {
+        hardZonePopupTimer.current = 60;
+        lastHardZonePopupScore.current = scoreRef.current;
+        setShowHardZonePopup(true);
+        hardZonePopupAnim.setValue(0);
+        hardZonePopupScale.setValue(0.5);
+        Animated.parallel([
+          Animated.sequence([
+            Animated.timing(hardZonePopupAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
+            Animated.delay(600),
+            Animated.timing(hardZonePopupAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+          ]),
+          Animated.spring(hardZonePopupScale, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }),
+        ]).start(() => setShowHardZonePopup(false));
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    } else {
+      hardZoneActive.current = false;
+      hardZoneIntensity.current *= 0.92;
+    }
+    if (hardZonePopupTimer.current > 0) hardZonePopupTimer.current--;
 
     if (glideTimer.current > 0) {
       const glideDur = 18 + Math.min(1, rhythmStreak.current / 10) * 14 + speedT * 8;
@@ -1003,11 +1064,14 @@ export default function GameScreen() {
         const clearBoost = GAME_CONFIG.POLE_PASS_SPEED_KICK + streakFactor * 0.025 + cadenceQuality * 0.02;
         poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + clearBoost);
 
-        polePulseTimer.current = 28;
-        polePulseIntensity.current = Math.min(1.5, 0.6 + consecutiveClears.current * 0.12 + streakFactor * 0.3);
+        const lvlPulseBoost = Math.min(1, (lvl.level - 1) / 6) * 0.3;
+        polePulseTimer.current = 28 + Math.min(4, lvl.level);
+        polePulseIntensity.current = Math.min(1.8, 0.6 + consecutiveClears.current * 0.12 + streakFactor * 0.3 + lvlPulseBoost);
 
-        const glideStrength = 0.5 + streakFactor * 0.4 + cadenceQuality * 0.3;
-        glideTimer.current = Math.round(24 + streakFactor * 14 + speedT * 8);
+        const lvlGlideBoost = Math.min(1, (lvl.level - 1) / 6) * 0.25;
+        const glideStrength = 0.5 + streakFactor * 0.4 + cadenceQuality * 0.3 + lvlGlideBoost;
+        const lvlGlideDuration = Math.round(lvl.level >= 4 ? 6 : 0);
+        glideTimer.current = Math.round(24 + streakFactor * 14 + speedT * 8 + lvlGlideDuration);
         glideIntensity.current = Math.min(1.0, glideStrength);
         cruiseMomentum.current = Math.min(0.8, cruiseMomentum.current + 0.15 + streakFactor * 0.1);
 
@@ -1015,10 +1079,12 @@ export default function GameScreen() {
         const halfGap = o.gapSize / 2;
         const distFromCenter = Math.abs(charCenterY - o.gapY);
         const gapTightness = distFromCenter / halfGap;
-        if (gapTightness > 0.45) {
-          const tightFactor = Math.min(1, (gapTightness - 0.45) / 0.45);
-          rollbackTimer.current = 24;
-          rollbackIntensity.current = tightFactor * tightFactor * (0.6 + blobby * 0.4);
+        const tightThreshold = Math.max(0.30, 0.45 - lvl.level * 0.02);
+        if (gapTightness > tightThreshold) {
+          const tightFactor = Math.min(1, (gapTightness - tightThreshold) / 0.45);
+          const lvlRollbackBoost = 1.0 + Math.min(1, (lvl.level - 1) / 6) * 0.5;
+          rollbackTimer.current = 24 + Math.min(6, lvl.level);
+          rollbackIntensity.current = tightFactor * tightFactor * (0.6 + blobby * 0.4) * lvlRollbackBoost;
           rollbackDirection.current = charCenterY > o.gapY ? 1 : -1;
         }
 
@@ -1571,6 +1637,13 @@ export default function GameScreen() {
     rollbackTimer.current = 0;
     rollbackIntensity.current = 0;
     rollbackDirection.current = 0;
+    hardZoneActive.current = false;
+    hardZoneIntensity.current = 0;
+    hardZonePopupTimer.current = 0;
+    lastHardZonePopupScore.current = 0;
+    setShowHardZonePopup(false);
+    hardZonePopupAnim.setValue(0);
+    hardZonePopupScale.setValue(0.5);
     cruiseBobPhase.current = 0;
     cruiseMomentum.current = 0;
     glideTimer.current = 0;
@@ -1988,6 +2061,24 @@ export default function GameScreen() {
                   <View style={[styles.levelUpGlow, { backgroundColor: currentLevel.color + '15' }]} />
                   <Text style={[styles.levelUpTitle, { color: currentLevel.color }]}>LEVEL {currentLevel.level}</Text>
                   <Text style={styles.levelUpName}>{currentLevel.name}</Text>
+                </View>
+              </Animated.View>
+            )}
+
+            {showHardZonePopup && (
+              <Animated.View
+                style={[
+                  styles.levelUpOverlay,
+                  {
+                    opacity: hardZonePopupAnim,
+                    transform: [{ scale: hardZonePopupScale }],
+                    top: safeTop + verticalScale(50),
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                <View style={[styles.hardZoneBadge, { borderColor: currentLevel.color + '80', shadowColor: currentLevel.color }]}>
+                  <Text style={[styles.hardZoneBadgeText, { color: currentLevel.color }]}>TIGHT SQUEEZE!</Text>
                 </View>
               </Animated.View>
             )}
