@@ -205,6 +205,12 @@ export default function GameScreen() {
   const cruiseBobPhase = useRef(0);
   const cruiseMomentum = useRef(0);
   const gapFlowIndex = useRef(0);
+  const squeezeAmount = useRef(0);
+  const airflowTimer = useRef(0);
+  const airflowIntensity = useRef(0);
+  const airflowGapY = useRef(0);
+  const isInGapZone = useRef(false);
+  const gapPassQuality = useRef(0);
 
   const charAnim = useRef(new Animated.Value(SCREEN_HEIGHT / 2)).current;
   const charXAnim = useRef(new Animated.Value(0)).current;
