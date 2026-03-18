@@ -202,6 +202,9 @@ export default function GameScreen() {
   const postGapRelaxTimer = useRef(0);
   const sustainedFallFrames = useRef(0);
   const correctionTap = useRef(false);
+  const cruiseBobPhase = useRef(0);
+  const cruiseMomentum = useRef(0);
+  const gapFlowIndex = useRef(0);
 
   const charAnim = useRef(new Animated.Value(SCREEN_HEIGHT / 2)).current;
   const charXAnim = useRef(new Animated.Value(0)).current;
@@ -388,13 +391,25 @@ export default function GameScreen() {
     const gapCenterMax = floorY - OBSTACLE_TUNING.GAP_CENTER_MAX_PADDING - gapSize / 2;
     const safeMin = Math.min(gapCenterMin, gapCenterMax);
     const safeMax = Math.max(gapCenterMin, gapCenterMax);
-    const shiftFactor = 0.36 + (lvl.level - 1) * 0.045;
-    const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.7);
-    const rawTarget = lastGapY.current + (Math.random() - 0.5) * maxShift * 2;
+    const range = safeMax - safeMin;
+
+    gapFlowIndex.current++;
+    const flowZones = [0.3, 0.7, 0.5, 0.25, 0.6, 0.45, 0.75, 0.35, 0.55, 0.65];
+    const zoneIdx = gapFlowIndex.current % flowZones.length;
+    const flowTarget = safeMin + range * flowZones[zoneIdx];
+
+    const shiftFactor = 0.30 + (lvl.level - 1) * 0.04;
+    const maxShift = range * Math.min(shiftFactor, 0.6);
+    const jitter = (Math.random() - 0.5) * maxShift * 0.6;
+    const rawTarget = flowTarget + jitter;
+
     const midY = (safeMin + safeMax) / 2;
-    const pullToCenter = 0.20;
-    const targetY = rawTarget + (midY - rawTarget) * pullToCenter;
-    const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
+    const pullToCenter = 0.25;
+    const blendedTarget = rawTarget + (midY - rawTarget) * pullToCenter;
+
+    const maxStep = range * 0.45;
+    const clamped = Math.max(lastGapY.current - maxStep, Math.min(lastGapY.current + maxStep, blendedTarget));
+    const gapCenter = Math.max(safeMin, Math.min(safeMax, clamped));
     lastGapY.current = gapCenter;
     const pair = BLOCK_COLOR_PAIRS[obstacleIdCounter.current % BLOCK_COLOR_PAIRS.length];
     const pipeAngle = 0;
@@ -574,15 +589,23 @@ export default function GameScreen() {
     const mp = movementProfileRef.current;
     const gravBase = lvl.fastGravity * mp.gravityMultiplier;
     const velMag = Math.abs(velocity.current);
-    const gravScale = 0.92 + 0.08 * Math.min(1, velMag / 5.0);
+    const gravScale = 0.88 + 0.12 * Math.min(1, velMag / 6.0);
     velocity.current += gravBase * gravScale;
-    velocity.current *= mp.fallDamping;
+    velocity.current *= mp.fallDamping * GAME_CONFIG.CRUISE_MOMENTUM_DAMPING / 0.975;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
-    const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.008);
-    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) : 1.0;
+    cruiseBobPhase.current += GAME_CONFIG.CRUISE_BOB_FREQUENCY;
+    const bobWave = Math.sin(cruiseBobPhase.current) * GAME_CONFIG.CRUISE_BOB_AMPLITUDE;
+    velocity.current += bobWave * 0.08;
+
+    cruiseMomentum.current *= 0.992;
+    if (Math.abs(cruiseMomentum.current) < 0.01) cruiseMomentum.current = 0;
+    velocity.current += cruiseMomentum.current * 0.015;
+
+    const moveSmooth = 1.0 - Math.min(0.14, velMag * 0.006);
+    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.10) : 1.0;
     characterY.current += velocity.current * moveSmooth * riseBoost;
 
     const minY = safeTop + 2;
@@ -992,7 +1015,9 @@ export default function GameScreen() {
     frameCount.current++;
     lastObstacleSpawn.current += GAME_CONFIG.FRAME_RATE;
     const spawnSpeedFactor = Math.min(speedMultiplier.current, 1.4);
-    const spawnInterval = lvl.spawnInterval / spawnSpeedFactor;
+    const baseInterval = lvl.spawnInterval / spawnSpeedFactor;
+    const flowVariation = 1.0 + Math.sin(gapFlowIndex.current * 0.7) * 0.06;
+    const spawnInterval = baseInterval * flowVariation;
     if (lastObstacleSpawn.current >= spawnInterval) {
       spawnObstacle();
       lastObstacleSpawn.current = 0;
@@ -1172,14 +1197,15 @@ export default function GameScreen() {
     const sideForce = isNeonMap ? 0 : normalizedX * MAX_X_DRIFT * 0.95;
 
     const normalizedY = tapY / SCREEN_HEIGHT;
-    const jumpMod = isNeonMap ? 1 : 1 + (0.5 - normalizedY) * 0.3;
+    const jumpMod = isNeonMap ? 1 : 1 + (0.5 - normalizedY) * 0.22;
 
     if (gameStatusRef.current === 'ready') {
       setGameStatus('playing');
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
       const mp = movementProfileRef.current;
-      velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      cruiseMomentum.current = -1.2;
+      velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 0.95;
       charAnim.setValue(characterY.current);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
@@ -1322,7 +1348,8 @@ export default function GameScreen() {
       const mp = movementProfileRef.current;
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
-      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      cruiseMomentum.current = velocity.current > 1.0 ? -1.8 : -1.0;
+      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 0.95;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
@@ -1485,6 +1512,9 @@ export default function GameScreen() {
     postGapRelaxTimer.current = 0;
     sustainedFallFrames.current = 0;
     correctionTap.current = false;
+    cruiseBobPhase.current = 0;
+    cruiseMomentum.current = 0;
+    gapFlowIndex.current = 0;
     levelRef.current = LEVELS[0];
     setCurrentLevel(LEVELS[0]);
     setShowLevelUp(false);
