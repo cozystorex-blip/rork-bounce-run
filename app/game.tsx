@@ -687,15 +687,15 @@ export default function GameScreen() {
     const airflowGravDampen = airflowTimer.current > 0 ? 0.92 : 1.0;
     velocity.current += gravBase * gravScale * airflowGravDampen * inGapGravDampen;
     velocity.current += cruiseBobVel.current * 0.12;
-    velocity.current *= mp.fallDamping * 0.996;
+    velocity.current *= mp.fallDamping * 0.997;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
-    const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.008);
-    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.10) : 1.0;
-    const fallSoften = velocity.current > 1.5 ? (0.975 - Math.min(0.015, (velocity.current - 1.5) * 0.003)) : 1.0;
-    const postGapSmooth = postGapRelaxTimer.current > 0 ? 0.97 : 1.0;
+    const moveSmooth = 1.0 - Math.min(0.20, velMag * 0.009);
+    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.08) : 1.0;
+    const fallSoften = velocity.current > 1.2 ? (0.970 - Math.min(0.018, (velocity.current - 1.2) * 0.004)) : 1.0;
+    const postGapSmooth = postGapRelaxTimer.current > 0 ? 0.965 : 1.0;
     characterY.current += velocity.current * moveSmooth * riseBoost * fallSoften * postGapSmooth;
 
     const minY = safeTop + 2;
@@ -754,7 +754,7 @@ export default function GameScreen() {
     let stretchXVal: number;
 
     const sustainFallT = Math.min(1, sustainedFallFrames.current / 20);
-    const stretchLerp = 0.15;
+    const stretchLerp = 0.12;
 
     const blobProg = Math.min(1, scoreRef.current / 50);
     const blobby = 1 + blobProg * 0.8;
@@ -944,8 +944,8 @@ export default function GameScreen() {
       }
     }
 
-    gallopMomentum.current *= 0.994;
-    if (gallopMomentum.current < 0.005) gallopMomentum.current = 0;
+    gallopMomentum.current *= 0.996;
+    if (gallopMomentum.current < 0.004) gallopMomentum.current = 0;
 
     const nearObs = obstacles.current;
     const proxCx = getCharX();
@@ -1064,15 +1064,15 @@ export default function GameScreen() {
         newlyPassed++;
         spawnFloatingScore(o.x, o.gapY, scoreRef.current);
 
-        gallopTimer.current = 36;
-        gallopRelease.current = 30;
-        gallopRhythmPhase.current = 0.85;
-        postGapRelaxTimer.current = 38;
+        gallopTimer.current = 42;
+        gallopRelease.current = 36;
+        gallopRhythmPhase.current = 0.90;
+        postGapRelaxTimer.current = 44;
         consecutiveClears.current++;
 
         const speedAirflowExt = Math.max(0, Math.min(1, (speedMultiplier.current - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START) / (GAME_CONFIG.HIGH_SPEED_FORGIVENESS_MAX - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START)));
-        airflowTimer.current = Math.round(GAME_CONFIG.AIRFLOW_DURATION + speedAirflowExt * 4);
-        airflowIntensity.current = Math.min(1.4, 0.5 + consecutiveClears.current * 0.06 + speedAirflowExt * 0.2);
+        airflowTimer.current = Math.round(GAME_CONFIG.AIRFLOW_DURATION + speedAirflowExt * 6);
+        airflowIntensity.current = Math.min(1.5, 0.55 + consecutiveClears.current * 0.07 + speedAirflowExt * 0.25);
         airflowOpacity.setValue(0.55);
         Animated.timing(airflowOpacity, { toValue: 0, duration: 420, useNativeDriver: true }).start();
 
@@ -1110,8 +1110,8 @@ export default function GameScreen() {
         const clearBoost = GAME_CONFIG.POLE_PASS_SPEED_KICK + streakFactor * 0.015 + cadenceQuality * 0.012;
         poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + clearBoost);
 
-        polePulseTimer.current = 32;
-        polePulseIntensity.current = Math.min(1.2, 0.45 + consecutiveClears.current * 0.08 + streakFactor * 0.2);
+        polePulseTimer.current = 36;
+        polePulseIntensity.current = Math.min(1.3, 0.50 + consecutiveClears.current * 0.09 + streakFactor * 0.25);
 
         const charCenterY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
         const halfGap = o.gapSize / 2;
@@ -1128,8 +1128,8 @@ export default function GameScreen() {
         const momentumBounce = gallopMomentum.current * 0.008;
         const streakBounce = streakFactor * 0.018;
         const rhythmFlow = cadenceQuality * 0.01;
-        const gallopBounce = -0.15 - cadenceBonus - momentumBounce - streakBounce - rhythmFlow - Math.min(0.035, Math.abs(velocity.current) * 0.004);
-        if (velocity.current > -2.2) {
+        const gallopBounce = -0.18 - cadenceBonus - momentumBounce - streakBounce - rhythmFlow - Math.min(0.04, Math.abs(velocity.current) * 0.005);
+        if (velocity.current > -2.5) {
           velocity.current += gallopBounce;
         }
       }
@@ -1206,7 +1206,7 @@ export default function GameScreen() {
     const rhythmBoost = gallopMomentum.current * 0.008 + sFlow * 0.007;
     const targetSpeed = 1 + smoothRamp + rhythmBoost + poleSpeedBoost.current;
     const prevSpeed = speedMultiplier.current;
-    const speedLerp = targetSpeed > prevSpeed ? 0.022 : 0.018;
+    const speedLerp = targetSpeed > prevSpeed ? 0.025 : 0.016;
     speedMultiplier.current = Math.min(
       GAME_CONFIG.MAX_SPEED_MULTIPLIER,
       prevSpeed + (targetSpeed - prevSpeed) * speedLerp
