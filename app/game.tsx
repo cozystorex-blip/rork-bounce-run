@@ -478,7 +478,7 @@ export default function GameScreen() {
     }
 
     const capHalfW = POLE_CAP_W / 2;
-    const speedBuf = Math.ceil(currentObstacleSpeed.current * 2) + 4;
+    const speedBuf = Math.ceil(currentObstacleSpeed.current) + 2;
     const prevBot = prevCharBottom.current;
     const bottomHardLimit = GAME_CONFIG.BOTTOM_POLE_HARD_LIMIT;
 
@@ -502,9 +502,9 @@ export default function GameScreen() {
         const topGraceUsed = currentEdgeGrace;
         if (charTop < gapStart - topGraceUsed) return true;
 
-        if (charBottom > gapEnd + currentEdgeGrace * 0.3) return true;
+        if (charBottom > gapEnd) return true;
 
-        if (prevBot <= gapEnd + currentEdgeGrace * 0.3 && charBottom > gapEnd + currentEdgeGrace * 0.3) return true;
+        if (prevBot <= gapEnd && charBottom > gapEnd) return true;
 
         if (nearEdge && (squeezeActive.current || speedForgiveCurve > 0.2)) {
           squeezeForgiveActive.current = true;
@@ -1183,22 +1183,22 @@ export default function GameScreen() {
       lastObstacleSpawn.current = 0;
     }
 
-    const distContrib = distanceRef.current * 0.00002;
-    const scoreContrib = scoreRef.current * 0.005;
+    const distContrib = distanceRef.current * 0.00003;
+    const scoreContrib = scoreRef.current * 0.007;
     const runProgress = distContrib + scoreContrib;
-    const earlyRamp = Math.min(runProgress, 0.5) * 0.10;
-    const midRamp = Math.max(0, Math.min(runProgress - 0.5, 2.0)) * 0.08;
-    const lateRamp = Math.max(0, Math.min(runProgress - 2.5, 2.5)) * 0.05;
-    const deepRamp = Math.max(0, Math.min(runProgress - 5.0, 4.0)) * 0.03;
-    const endlessRamp = Math.max(0, runProgress - 9.0) * 0.015;
+    const earlyRamp = Math.min(runProgress, 0.5) * 0.14;
+    const midRamp = Math.max(0, Math.min(runProgress - 0.5, 2.0)) * 0.13;
+    const lateRamp = Math.max(0, Math.min(runProgress - 2.5, 2.5)) * 0.08;
+    const deepRamp = Math.max(0, Math.min(runProgress - 5.0, 4.0)) * 0.045;
+    const endlessRamp = Math.max(0, runProgress - 9.0) * 0.025;
     const smoothRamp = earlyRamp + midRamp + lateRamp + deepRamp + endlessRamp;
     poleSpeedBoost.current *= GAME_CONFIG.POLE_SPEED_DECAY;
     if (poleSpeedBoost.current < 0.001) poleSpeedBoost.current = 0;
     const sFlow = Math.min(1, rhythmStreak.current / 11);
-    const rhythmBoost = gallopMomentum.current * 0.005 + sFlow * 0.004;
+    const rhythmBoost = gallopMomentum.current * 0.008 + sFlow * 0.007;
     const targetSpeed = 1 + smoothRamp + rhythmBoost + poleSpeedBoost.current;
     const prevSpeed = speedMultiplier.current;
-    const speedLerp = targetSpeed > prevSpeed ? 0.018 : 0.012;
+    const speedLerp = targetSpeed > prevSpeed ? 0.025 : 0.016;
     speedMultiplier.current = Math.min(
       GAME_CONFIG.MAX_SPEED_MULTIPLIER,
       prevSpeed + (targetSpeed - prevSpeed) * speedLerp
@@ -1292,17 +1292,17 @@ export default function GameScreen() {
       const rawDelta = timestamp - lastTimeRef.current;
       lastTimeRef.current = timestamp;
 
-      if (rawDelta > 100) {
+      if (rawDelta > 200) {
         accumulatorRef.current = GAME_CONFIG.FRAME_RATE;
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
 
-      const delta = Math.min(rawDelta, 48);
+      const delta = Math.min(rawDelta, 34);
       accumulatorRef.current += delta;
 
       let steps = 0;
-      const maxSteps = 6;
+      const maxSteps = 4;
       while (accumulatorRef.current >= GAME_CONFIG.FRAME_RATE && steps < maxSteps) {
         const alive = stepPhysicsRef.current();
         if (!alive) return;
@@ -1310,8 +1310,8 @@ export default function GameScreen() {
         steps++;
       }
 
-      if (accumulatorRef.current > GAME_CONFIG.FRAME_RATE * 2) {
-        accumulatorRef.current = GAME_CONFIG.FRAME_RATE;
+      if (accumulatorRef.current > GAME_CONFIG.FRAME_RATE * maxSteps) {
+        accumulatorRef.current = 0;
       }
 
       rafRef.current = requestAnimationFrame(tick);
