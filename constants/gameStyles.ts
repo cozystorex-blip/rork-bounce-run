@@ -807,6 +807,103 @@ export const gameStyles = StyleSheet.create({
   },
 });
 
+  effectPickup: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 40,
+  },
+  effectPickupOrb: {
+    borderRadius: scale(14),
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  effectPickupIcon: {
+    fontSize: moderateScale(12),
+  },
+  effectPickupGlow: {
+    position: 'absolute',
+    borderRadius: scale(20),
+  },
+  effectIndicator: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 99,
+  },
+  effectIndicatorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(5),
+    borderRadius: scale(14),
+    borderWidth: 1.5,
+    gap: scale(5),
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  effectIndicatorIcon: {
+    fontSize: moderateScale(13),
+  },
+  effectIndicatorName: {
+    fontSize: moderateScale(11),
+    fontWeight: '900' as const,
+    letterSpacing: 1.5,
+  },
+  effectTimerBar: {
+    height: verticalScale(3),
+    borderRadius: verticalScale(1.5),
+    marginTop: verticalScale(2),
+  },
+  effectActivateOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 88,
+  },
+  effectActivateCard: {
+    paddingHorizontal: scale(28),
+    paddingVertical: verticalScale(12),
+    borderRadius: scale(20),
+    borderWidth: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(8),
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  effectActivateIcon: {
+    fontSize: moderateScale(22),
+  },
+  effectActivateText: {
+    fontSize: moderateScale(22),
+    fontWeight: '900' as const,
+    letterSpacing: 3,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  blobEffectRing: {
+    position: 'absolute',
+    borderRadius: 999,
+    borderWidth: 2,
+  },
+  blobEffectTrail: {
+    position: 'absolute',
+    borderRadius: scale(4),
+  },
+});
+
 export const trickIconStyles = StyleSheet.create({
   iconWrap: {
     width: scale(32),
