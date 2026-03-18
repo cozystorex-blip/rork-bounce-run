@@ -591,21 +591,21 @@ export default function GameScreen() {
 
     if (tapYDecayTimer.current > 0) {
       tapYDecayTimer.current--;
-      tapYInfluence.current *= 0.94;
+      tapYInfluence.current *= 0.96;
     } else {
-      tapYInfluence.current *= 0.97;
+      tapYInfluence.current *= 0.98;
       if (Math.abs(tapYInfluence.current) < 0.005) tapYInfluence.current = 0;
     }
-    verticalMomentumBias.current *= 0.985;
+    verticalMomentumBias.current *= 0.988;
     if (Math.abs(verticalMomentumBias.current) < 0.005) verticalMomentumBias.current = 0;
 
     if (flickDecayTimer.current > 0) {
       flickDecayTimer.current--;
-      flickImpulse.current *= 0.91;
-      flickIntensity.current *= 0.93;
+      flickImpulse.current *= 0.93;
+      flickIntensity.current *= 0.94;
     } else {
-      flickImpulse.current *= 0.96;
-      flickIntensity.current *= 0.95;
+      flickImpulse.current *= 0.97;
+      flickIntensity.current *= 0.96;
       if (Math.abs(flickImpulse.current) < 0.003) flickImpulse.current = 0;
       if (flickIntensity.current < 0.005) flickIntensity.current = 0;
     }
@@ -613,15 +613,15 @@ export default function GameScreen() {
       flickStretchTimer.current--;
     }
 
-    const tapGravMod = 1 + tapYInfluence.current * -0.12;
-    const biasPull = verticalMomentumBias.current * -0.08;
+    const tapGravMod = 1 + tapYInfluence.current * -0.18;
+    const biasPull = verticalMomentumBias.current * -0.14;
 
     const screenMidY = SCREEN_HEIGHT / 2;
     const charCenterPos = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
     const posNorm = (charCenterPos - screenMidY) / (SCREEN_HEIGHT * 0.4);
     const posGravNudge = posNorm * 0.04;
 
-    const flickPull = flickImpulse.current * 0.35;
+    const flickPull = flickImpulse.current * 0.5;
     velocity.current += gravBase * gravScale * tapGravMod + biasPull + posGravNudge + flickPull;
     velocity.current *= mp.fallDamping;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
@@ -629,8 +629,8 @@ export default function GameScreen() {
     }
 
     const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.008);
-    const riseExtend = tapYInfluence.current > 0.1 ? 1.0 + tapYInfluence.current * 0.08 : 1.0;
-    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) * riseExtend : 1.0;
+    const riseExtend = tapYInfluence.current > 0.1 ? 1.0 + tapYInfluence.current * 0.12 : 1.0;
+    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.15) * riseExtend : 1.0;
     characterY.current += velocity.current * moveSmooth * riseBoost;
 
     const minY = safeTop + 2;
@@ -1262,47 +1262,47 @@ export default function GameScreen() {
     const normalizedY = tapY / SCREEN_HEIGHT;
     const tapYOffset = 0.5 - normalizedY;
     const tapYCurve = Math.sign(tapYOffset) * Math.pow(Math.abs(tapYOffset), 0.8);
-    const jumpMod = isNeonMap ? 1 : 1 + tapYCurve * 0.55;
+    const jumpMod = isNeonMap ? 1 : 1 + tapYCurve * 0.75;
 
     lastTapNormY.current = normalizedY;
-    tapYInfluence.current = tapYOffset;
-    tapYDecayTimer.current = 30;
+    tapYInfluence.current = tapYOffset * 1.4;
+    tapYDecayTimer.current = 38;
 
     const tapYDelta = prevTapNormY.current - normalizedY;
-    const flickThreshold = 0.08;
+    const flickThreshold = 0.06;
     const isFlickUp = tapYDelta > flickThreshold && normalizedY < 0.45;
     const isFlickDown = tapYDelta < -flickThreshold && normalizedY > 0.55;
     const flickQuick = timeSinceLastTap < 350;
 
     if (flickQuick && isFlickUp) {
-      const flickMag = Math.min(1, Math.abs(tapYDelta) * 2.5);
-      flickImpulse.current = -flickMag * 0.8;
+      const flickMag = Math.min(1, Math.abs(tapYDelta) * 3.0);
+      flickImpulse.current = -flickMag * 1.1;
       flickDirection.current = -1;
-      flickIntensity.current = Math.min(1, flickMag * 0.9);
-      flickDecayTimer.current = 22;
-      flickStretchTimer.current = 18;
+      flickIntensity.current = Math.min(1, flickMag * 1.0);
+      flickDecayTimer.current = 26;
+      flickStretchTimer.current = 20;
       flickStretchDir.current = -1;
-      velocity.current += -0.45 * flickMag;
+      velocity.current += -0.7 * flickMag;
     } else if (flickQuick && isFlickDown) {
-      const flickMag = Math.min(1, Math.abs(tapYDelta) * 2.5);
-      flickImpulse.current = flickMag * 0.55;
+      const flickMag = Math.min(1, Math.abs(tapYDelta) * 3.0);
+      flickImpulse.current = flickMag * 0.8;
       flickDirection.current = 1;
-      flickIntensity.current = Math.min(1, flickMag * 0.9);
-      flickDecayTimer.current = 22;
-      flickStretchTimer.current = 18;
+      flickIntensity.current = Math.min(1, flickMag * 1.0);
+      flickDecayTimer.current = 26;
+      flickStretchTimer.current = 20;
       flickStretchDir.current = 1;
-      velocity.current += 0.3 * flickMag;
+      velocity.current += 0.5 * flickMag;
     } else {
       flickDirection.current *= 0.5;
     }
     prevTapNormY.current = normalizedY;
 
     if (normalizedY < 0.35) {
-      verticalMomentumBias.current = Math.min(1, verticalMomentumBias.current + 0.35);
+      verticalMomentumBias.current = Math.min(1.2, verticalMomentumBias.current + 0.45);
     } else if (normalizedY > 0.65) {
-      verticalMomentumBias.current = Math.max(-0.6, verticalMomentumBias.current - 0.25);
+      verticalMomentumBias.current = Math.max(-0.8, verticalMomentumBias.current - 0.35);
     } else {
-      verticalMomentumBias.current *= 0.7;
+      verticalMomentumBias.current *= 0.65;
     }
 
     if (gameStatusRef.current === 'ready') {
