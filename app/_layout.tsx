@@ -6,7 +6,7 @@ import { GameStateProvider } from "@/providers/GameStateProvider";
 import { configureRevenueCat } from "@/utils/purchases";
 
 void SplashScreen.preventAutoHideAsync();
-void configureRevenueCat();
+configureRevenueCat();
 
 const queryClient = new QueryClient();
 
