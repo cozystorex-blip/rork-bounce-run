@@ -977,7 +977,6 @@ export default function GameScreen() {
         polePulseTimer.current = 28;
         polePulseIntensity.current = Math.min(1.5, 0.6 + consecutiveClears.current * 0.12 + streakFactor * 0.3);
 
-        const charCenterY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
         const halfGap = o.gapSize / 2;
         const distFromCenter = Math.abs(charCenterY - o.gapY);
         const gapTightness = distFromCenter / halfGap;
