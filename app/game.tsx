@@ -748,7 +748,6 @@ export default function GameScreen() {
     const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus + gallopSpeedBonus) * lvl.fastSpeedMult * decelMult;
     currentObstacleSpeed.current = currentSpeed;
 
-    const obs = obstacles.current;
     const obsLen = obs.length;
     let i = 0;
     for (let j = 0; j < obsLen; j++) {
