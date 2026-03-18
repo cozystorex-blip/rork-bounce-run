@@ -502,17 +502,9 @@ export default function GameScreen() {
         const topGraceUsed = currentEdgeGrace;
         if (charTop < gapStart - topGraceUsed) return true;
 
-        const bottomPenetration = charBottom - gapEnd;
-        const bottomGrace = Math.min(currentEdgeGrace, baseEdgeGrace + bottomHardLimit);
-        if (bottomPenetration > bottomGrace) return true;
+        if (charBottom > gapEnd) return true;
 
-        if (prevBot <= gapEnd + bottomGrace && charBottom > gapEnd + bottomGrace) {
-          if (bottomPenetration > bottomGrace) return true;
-        }
-
-        if (charBottom > gapEnd - 1 + bottomGrace && charTop < gapEnd + POLE_CAP_H - bottomGrace * 0.4) {
-          if (charBottom > gapEnd + bottomGrace + 1) return true;
-        }
+        if (prevBot <= gapEnd && charBottom > gapEnd) return true;
 
         if (nearEdge && (squeezeActive.current || speedForgiveCurve > 0.2)) {
           squeezeForgiveActive.current = true;

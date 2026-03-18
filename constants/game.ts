@@ -64,7 +64,7 @@ export const GAME_CONFIG = {
   BLOB_TAP_WOBBLE_WIDEN: 0.03,
   BLOB_FALL_STRETCH: 0.02,
   BLOB_RISE_COMPRESS: 0.015,
-  BOTTOM_POLE_HARD_LIMIT: 2.0,
+  BOTTOM_POLE_HARD_LIMIT: 0,
 };
 
 export interface LevelConfig {
