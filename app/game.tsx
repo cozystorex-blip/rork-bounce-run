@@ -421,14 +421,14 @@ export default function GameScreen() {
     lastGapZone.current = preferredZone;
 
     const zoneCenter = zones[preferredZone];
-    const jitter = (Math.random() - 0.5) * zoneThird * 0.6;
-    const shiftFactor = 0.32 + (lvl.level - 1) * 0.040;
-    const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.7);
+    const jitter = (Math.random() - 0.5) * zoneThird * 0.5;
+    const shiftFactor = 0.28 + (lvl.level - 1) * 0.035;
+    const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.65);
     const rawTarget = zoneCenter + jitter;
-    const blendWithLast = 0.35;
+    const blendWithLast = 0.42;
     const blended = rawTarget * (1 - blendWithLast) + lastGapY.current * blendWithLast;
     const midY = (safeMin + safeMax) / 2;
-    const pullToCenter = 0.18;
+    const pullToCenter = 0.22;
     const targetY = blended + (midY - blended) * pullToCenter;
     const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
     lastGapY.current = gapCenter;
@@ -644,7 +644,7 @@ export default function GameScreen() {
     const mp = movementProfileRef.current;
     const gravBase = lvl.fastGravity * mp.gravityMultiplier;
     const velMag = Math.abs(velocity.current);
-    const gravScale = 0.88 + 0.12 * Math.min(1, velMag / 5.5);
+    const gravScale = 0.85 + 0.15 * Math.min(1, velMag / 6.0);
 
     cruiseBobPhase.current += GAME_CONFIG.CRUISE_BOB_SPEED;
     const bobWave = Math.sin(cruiseBobPhase.current) * GAME_CONFIG.CRUISE_BOB_AMPLITUDE;
@@ -663,12 +663,12 @@ export default function GameScreen() {
       if (gapDistX > -POLE_CAP_W * 0.8 && gapDistX < gapAssistRange) {
         const halfGap = (go.gapSize ?? GAME_CONFIG.OBSTACLE_GAP) / 2;
         const distFromGapCenter = Math.abs(charCenterForGap - go.gapY);
-        const alignThreshold = halfGap * (0.85 + speedAssistCurve * 0.10);
+        const alignThreshold = halfGap * (0.90 + speedAssistCurve * 0.08);
         if (distFromGapCenter < alignThreshold) {
           const xProximity = 1 - Math.max(0, gapDistX) / gapAssistRange;
           const yAlignment = 1 - distFromGapCenter / alignThreshold;
           const assistT = Math.min(1, xProximity * yAlignment);
-          const assistStrength = assistT * (0.5 + speedAssistCurve * 0.5);
+          const assistStrength = assistT * (0.45 + speedAssistCurve * 0.45);
           inGapAssistActive.current = true;
           inGapAssistIntensity.current = assistStrength;
           const centeringForce = GAME_CONFIG.IN_GAP_CENTERING_FORCE + speedAssistCurve * GAME_CONFIG.IN_GAP_SPEED_CENTERING_BOOST;
@@ -686,16 +686,17 @@ export default function GameScreen() {
     const inGapGravDampen = inGapAssistActive.current ? (1 - inGapAssistIntensity.current * (1 - GAME_CONFIG.IN_GAP_GRAVITY_DAMPEN)) : 1.0;
     const airflowGravDampen = airflowTimer.current > 0 ? 0.88 : 1.0;
     velocity.current += gravBase * gravScale * airflowGravDampen * inGapGravDampen;
-    velocity.current += cruiseBobVel.current * 0.15;
-    velocity.current *= mp.fallDamping * 0.997;
+    velocity.current += cruiseBobVel.current * 0.12;
+    velocity.current *= mp.fallDamping * 0.996;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
-    const moveSmooth = 1.0 - Math.min(0.20, velMag * 0.010);
-    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) : 1.0;
-    const fallSoften = velocity.current > 2.0 ? 0.97 : 1.0;
-    characterY.current += velocity.current * moveSmooth * riseBoost * fallSoften;
+    const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.008);
+    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.10) : 1.0;
+    const fallSoften = velocity.current > 1.5 ? (0.975 - Math.min(0.015, (velocity.current - 1.5) * 0.003)) : 1.0;
+    const postGapSmooth = postGapRelaxTimer.current > 0 ? 0.97 : 1.0;
+    characterY.current += velocity.current * moveSmooth * riseBoost * fallSoften * postGapSmooth;
 
     const minY = safeTop + 2;
     const maxY = SCREEN_HEIGHT - GROUND_HEIGHT - 2;
@@ -765,13 +766,14 @@ export default function GameScreen() {
       const targetX = Math.max(0.80, 1 - (riseIntensity * 0.014 + popEffect * 0.5) * blobby);
       stretchYVal = prevStretchY.current + (targetY - prevStretchY.current) * stretchLerp;
       stretchXVal = prevStretchX.current + (targetX - prevStretchX.current) * stretchLerp;
-    } else if (vel > 0.6) {
-      const fallT = Math.min(1, absVel / 5);
-      const droopEaseIn = Math.min(1, (vel - 0.6) / 2.5);
+    } else if (vel > 0.5) {
+      const fallT = Math.min(1, absVel / 5.5);
+      const droopEaseIn = Math.min(1, (vel - 0.5) / 2.8);
       const droopCurve = droopEaseIn * droopEaseIn;
-      const sustainBonus = sustainFallT * 0.03;
-      const targetY = Math.max(0.78, 1 - (fallT * 0.06 + droopCurve * 0.08 + sustainBonus) * blobby);
-      const targetX = Math.min(1.22, 1 + (fallT * 0.055 + droopCurve * 0.07 + sustainBonus * 0.5) * blobby);
+      const sustainBonus = sustainFallT * 0.035;
+      const softDroop = Math.min(1, (vel - 0.5) / 4.0) * 0.012;
+      const targetY = Math.max(0.78, 1 - (fallT * 0.055 + droopCurve * 0.07 + sustainBonus + softDroop) * blobby);
+      const targetX = Math.min(1.22, 1 + (fallT * 0.05 + droopCurve * 0.065 + sustainBonus * 0.5 + softDroop * 0.4) * blobby);
       stretchYVal = prevStretchY.current + (targetY - prevStretchY.current) * stretchLerp;
       stretchXVal = prevStretchX.current + (targetX - prevStretchX.current) * stretchLerp;
     } else {
