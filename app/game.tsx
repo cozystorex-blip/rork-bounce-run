@@ -598,11 +598,15 @@ export default function GameScreen() {
     if (glideTimer.current > 0) {
       glideTimer.current--;
       const glideStr = glideIntensity.current;
-      const glideDamping = 0.94 - speedT * 0.06;
-      velocity.current *= (glideDamping + (1 - glideDamping) * (1 - glideStr));
-      const glideSmooth = glideStr * 0.015 * (1 + speedT * 0.5);
-      if (velocity.current > 0.5) velocity.current -= glideSmooth;
-      if (velocity.current < -0.5) velocity.current += glideSmooth * 0.6;
+      const glideProgress = 1 - (glideTimer.current / (18 + Math.min(1, rhythmStreak.current / 10) * 14 + speedT * 8));
+      const glideCurve = glideProgress < 0.3 ? glideProgress / 0.3 : 1.0 - (glideProgress - 0.3) * 0.4;
+      const glideDamping = 0.92 - speedT * 0.07;
+      velocity.current *= (glideDamping + (1 - glideDamping) * (1 - glideStr * glideCurve));
+      const glideSmooth = glideStr * glideCurve * 0.022 * (1 + speedT * 0.6);
+      if (velocity.current > 0.4) velocity.current -= glideSmooth;
+      if (velocity.current < -0.4) velocity.current += glideSmooth * 0.5;
+      const glideSpeedPush = glideStr * glideCurve * 0.018 * (1 + speedT * 0.3);
+      poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + glideSpeedPush * 0.008);
     }
 
     const maxFallVel = GAME_CONFIG.MAX_FALL_VELOCITY - speedT * 0.6;
@@ -879,12 +883,28 @@ export default function GameScreen() {
     }
 
     if (glideTimer.current > 0) {
-      const glideSmooth = glideIntensity.current * 0.3;
-      stretchXVal = stretchXVal * (1 - glideSmooth) + 1.0 * glideSmooth;
-      stretchYVal = stretchYVal * (1 - glideSmooth) + 1.0 * glideSmooth;
-      const glideStreamline = glideIntensity.current * 0.012 * (1 + speedT * 0.5);
+      const glideDur = 18 + Math.min(1, rhythmStreak.current / 10) * 14 + speedT * 8;
+      const glideT = glideTimer.current / glideDur;
+      const glideStr = glideIntensity.current;
+      if (glideT > 0.7) {
+        const squeezeIn = (glideT - 0.7) / 0.3;
+        const eased = squeezeIn * squeezeIn;
+        stretchXVal *= (1 - eased * 0.04 * glideStr * blobby);
+        stretchYVal *= (1 + eased * 0.055 * glideStr * blobby);
+      } else if (glideT > 0.25) {
+        const widenPhase = (glideT - 0.25) / 0.45;
+        const eased = Math.sin(widenPhase * Math.PI);
+        stretchXVal *= (1 + eased * 0.035 * glideStr * blobby);
+        stretchYVal *= (1 - eased * 0.02 * glideStr * blobby);
+      } else {
+        const settleOut = glideT / 0.25;
+        const gentle = settleOut * settleOut;
+        stretchXVal *= (1 + gentle * 0.012 * glideStr);
+        stretchYVal *= (1 - gentle * 0.006 * glideStr);
+      }
+      const glideStreamline = glideStr * 0.008 * (1 + speedT * 0.4);
       stretchXVal *= (1 - glideStreamline);
-      stretchYVal *= (1 + glideStreamline * 0.6);
+      stretchYVal *= (1 + glideStreamline * 0.5);
     }
 
     prevVelSign.current = vel;
@@ -958,8 +978,8 @@ export default function GameScreen() {
         polePulseTimer.current = 28;
         polePulseIntensity.current = Math.min(1.5, 0.6 + consecutiveClears.current * 0.12 + streakFactor * 0.3);
 
-        const glideStrength = 0.4 + streakFactor * 0.35 + cadenceQuality * 0.25;
-        glideTimer.current = Math.round(18 + streakFactor * 10 + speedT * 6);
+        const glideStrength = 0.5 + streakFactor * 0.4 + cadenceQuality * 0.3;
+        glideTimer.current = Math.round(24 + streakFactor * 14 + speedT * 8);
         glideIntensity.current = Math.min(1.0, glideStrength);
         cruiseMomentum.current = Math.min(0.8, cruiseMomentum.current + 0.15 + streakFactor * 0.1);
 
