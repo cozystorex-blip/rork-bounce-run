@@ -30,8 +30,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: verticalScale(18),
-    backgroundColor: '#7ABFD8',
-    opacity: 0.45,
+    backgroundColor: '#92C8D8',
+    opacity: 0.3,
     borderTopLeftRadius: scale(24),
     borderTopRightRadius: scale(24),
   },
@@ -41,8 +41,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: verticalScale(8),
-    backgroundColor: '#A0E870',
-    opacity: 0.6,
+    backgroundColor: '#A8D880',
+    opacity: 0.45,
     zIndex: 2,
   },
   grassBody: {
@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '62%',
-    backgroundColor: '#72C240',
+    backgroundColor: '#82C858',
     zIndex: 2,
   },
   grassMid: {
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '42%',
-    backgroundColor: '#62B030',
+    backgroundColor: '#72B848',
     zIndex: 3,
   },
   grassDark: {
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '22%',
-    backgroundColor: '#4A9828',
+    backgroundColor: '#5CA838',
     zIndex: 4,
   },
   grassOutline: {
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: scale(3.5),
-    backgroundColor: '#1A1A2E',
+    backgroundColor: 'rgba(26,26,46,0.45)',
     zIndex: 5,
   },
 });
