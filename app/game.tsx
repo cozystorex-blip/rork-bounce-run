@@ -468,13 +468,22 @@ export default function GameScreen() {
     const charTop = centerY - halfHitY;
     const charBottom = centerY + halfHitY;
 
+    const bottomHitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.80;
+    const bottomHalfHitY = bottomHitSizeY / 2;
+    const hardCharBottom = centerY + bottomHalfHitY;
+
+    const bottomHitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
+    const bottomHalfHitX = bottomHitSizeX / 2;
+    const hardCharLeft = cx - bottomHalfHitX;
+    const hardCharRight = cx + bottomHalfHitX;
+
     const baseEdgeGrace = GAME_CONFIG.HIGH_SPEED_EDGE_GRACE + speedForgiveCurve * (GAME_CONFIG.HIGH_SPEED_EDGE_GRACE_MAX - GAME_CONFIG.HIGH_SPEED_EDGE_GRACE);
     const squeezeGraceBonus = squeezeActive.current ? squeezeIntensity.current * GAME_CONFIG.SQUEEZE_FORGIVE_MAX_GRACE * (0.5 + speedForgiveCurve * 0.5) : 0;
     const edgeGrace = baseEdgeGrace + squeezeGraceBonus;
 
     const ceilingY = safeTop;
     const floorY = SCREEN_HEIGHT - GROUND_HEIGHT;
-    if (charTop <= ceilingY || charBottom >= floorY) {
+    if (charTop <= ceilingY || hardCharBottom >= floorY) {
       return true;
     }
 
@@ -490,8 +499,8 @@ export default function GameScreen() {
       const pipeLeft = o.x - capHalfW - speedBuf;
       const pipeRight = o.x + capHalfW;
 
-      if (charRight > pipeLeft && charLeft < pipeRight) {
-        if (charBottom > gapEnd) {
+      if (hardCharRight > pipeLeft && hardCharLeft < pipeRight) {
+        if (hardCharBottom > gapEnd) {
           return true;
         }
       }
@@ -499,8 +508,8 @@ export default function GameScreen() {
       const shaftHalfW = POLE_SHAFT_W / 2;
       const shaftLeft = o.x - shaftHalfW - speedBuf;
       const shaftRight = o.x + shaftHalfW;
-      if (charRight > shaftLeft && charLeft < shaftRight) {
-        if (charBottom > gapEnd) {
+      if (hardCharRight > shaftLeft && hardCharLeft < shaftRight) {
+        if (hardCharBottom > gapEnd) {
           return true;
         }
       }
@@ -508,8 +517,8 @@ export default function GameScreen() {
       const baseHalfW = POLE_BASE_W / 2;
       const baseLeft = o.x - baseHalfW - speedBuf;
       const baseRight = o.x + baseHalfW;
-      if (charRight > baseLeft && charLeft < baseRight) {
-        if (charBottom > gapEnd) {
+      if (hardCharRight > baseLeft && hardCharLeft < baseRight) {
+        if (hardCharBottom > gapEnd) {
           return true;
         }
       }
