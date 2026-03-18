@@ -193,9 +193,6 @@ export default function GameScreen() {
   const prevStretchX = useRef(1);
   const prevStretchY = useRef(1);
 
-  const cruiseBobPhase = useRef(0);
-  const cruiseBobActive = useRef(true);
-
   const xDrift = useRef(0);
   const targetXDrift = useRef(0);
   const characterX = useRef(CHARACTER_BASE_X);
@@ -356,8 +353,6 @@ export default function GameScreen() {
     }, 2000);
   }, [comboAnim]);
 
-  const gapPatternIndex = useRef(0);
-
   const spawnObstacle = useCallback(() => {
     const lvl = levelRef.current;
     const gapSize = lvl.fastGap;
@@ -367,29 +362,14 @@ export default function GameScreen() {
     const gapCenterMax = floorY - OBSTACLE_TUNING.GAP_CENTER_MAX_PADDING - gapSize / 2;
     const safeMin = Math.min(gapCenterMin, gapCenterMax);
     const safeMax = Math.max(gapCenterMin, gapCenterMax);
-
-    const range = safeMax - safeMin;
-    const zones = [safeMin + range * 0.25, safeMin + range * 0.5, safeMin + range * 0.75];
-    const patterns = [
-      [1, 0, 2, 1, 0, 1, 2, 0],
-      [0, 1, 1, 2, 0, 2, 1, 0],
-      [2, 1, 0, 1, 2, 0, 1, 2],
-    ];
-    const patternSet = patterns[Math.floor(obstacleIdCounter.current / 8) % patterns.length];
-    const patIdx = obstacleIdCounter.current % 8;
-    const zoneTarget = zones[patternSet[patIdx]];
-
-    const jitter = (Math.random() - 0.5) * range * 0.18;
-    const blendWithLast = 0.3;
-    const rawTarget = zoneTarget + jitter;
-    const blended = rawTarget * (1 - blendWithLast) + lastGapY.current * blendWithLast;
-
+    const shiftFactor = 0.40 + (lvl.level - 1) * 0.05;
+    const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.7);
+    const rawTarget = lastGapY.current + (Math.random() - 0.5) * maxShift * 2;
     const midY = (safeMin + safeMax) / 2;
-    const pullToCenter = 0.12;
-    const targetY = blended + (midY - blended) * pullToCenter;
+    const pullToCenter = 0.15;
+    const targetY = rawTarget + (midY - rawTarget) * pullToCenter;
     const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
     lastGapY.current = gapCenter;
-    gapPatternIndex.current++;
     const pair = BLOCK_COLOR_PAIRS[obstacleIdCounter.current % BLOCK_COLOR_PAIRS.length];
     const pipeAngle = 0;
     obstacles.current.push({
@@ -566,31 +546,25 @@ export default function GameScreen() {
 
     const lvl = levelRef.current;
     const mp = movementProfileRef.current;
-    const gravBase = lvl.fastGravity * mp.gravityMultiplier * 0.88;
+    const gravBase = lvl.fastGravity * mp.gravityMultiplier;
+    const velSign = velocity.current < 0 ? -1 : 1;
     const velMag = Math.abs(velocity.current);
     const gravCurve = velocity.current < 0
-      ? gravBase * (0.82 + 0.10 * Math.min(1, velMag / 5))
-      : gravBase * (0.92 + 0.03 * Math.min(1, velMag / 4));
+      ? gravBase * (0.88 + 0.12 * Math.min(1, velMag / 5))
+      : gravBase * (1.0 + 0.04 * Math.min(1, velMag / 4));
     velocity.current += gravCurve;
-    velocity.current *= mp.fallDamping * 1.004;
+    velocity.current *= mp.fallDamping;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
-    cruiseBobPhase.current += GAME_CONFIG.CRUISE_BOB_SPEED;
-    if (cruiseBobPhase.current > Math.PI * 2) cruiseBobPhase.current -= Math.PI * 2;
-    const bobForce = Math.sin(cruiseBobPhase.current) * GAME_CONFIG.CRUISE_BOB_AMPLITUDE;
-    velocity.current += bobForce * 0.35;
-
-    velocity.current *= GAME_CONFIG.CRUISE_MOMENTUM_DAMPING;
-
     if (velocity.current < 0) {
-      const riseEase = 1.0 - Math.min(0.28, Math.abs(velocity.current) * 0.012);
-      const riseSpeed = velocity.current * riseEase * (1.0 + (1.0 - mp.riseSmoothing) * 0.15);
+      const riseEase = 1.0 - Math.min(0.32, Math.abs(velocity.current) * 0.014);
+      const riseSpeed = velocity.current * riseEase * (1.0 + (1.0 - mp.riseSmoothing) * 0.18);
       characterY.current += riseSpeed;
     } else {
-      const fallEase = 1.0 - Math.max(0, (velocity.current - 2.0) * 0.018);
-      characterY.current += velocity.current * Math.max(0.90, fallEase);
+      const fallEase = 1.0 - Math.max(0, (velocity.current - 2.5) * 0.022);
+      characterY.current += velocity.current * Math.max(0.87, fallEase);
     }
 
     const minY = safeTop + 2;
@@ -754,8 +728,8 @@ export default function GameScreen() {
     prevCharY.current = characterY.current;
 
     charAnim.setValue(characterY.current);
-    const rotVal = Math.max(-1, Math.min(1, velocity.current / 10));
-    if (Math.abs(rotVal - prevRotVal.current) > 0.04) {
+    const rotVal = Math.max(-1, Math.min(1, velocity.current / 8));
+    if (Math.abs(rotVal - prevRotVal.current) > 0.05) {
       charRotation.setValue(rotVal);
       prevRotVal.current = rotVal;
     }
@@ -882,24 +856,24 @@ export default function GameScreen() {
 
     if (gameStatusRef.current === 'ready') {
       setGameStatus('playing');
-      tapSideForce.current = sideForce * 0.8;
+      tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
       const mp = movementProfileRef.current;
-      velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 0.95;
+      velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
       charAnim.setValue(characterY.current);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(charStretchX, { toValue: 1.12, duration: 70, useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 0.95, friction: 4, tension: 160, useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 1, friction: 6, tension: 100, useNativeDriver: true }),
+          Animated.timing(charStretchX, { toValue: 1.18, duration: 60, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 0.92, friction: 3, tension: 200, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
         ]),
         Animated.sequence([
-          Animated.timing(charStretchY, { toValue: 0.88, duration: 70, useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1.06, friction: 4, tension: 160, useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1, friction: 6, tension: 100, useNativeDriver: true }),
+          Animated.timing(charStretchY, { toValue: 0.82, duration: 60, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1.1, friction: 3, tension: 200, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
         ]),
       ]).start();
       if (mp.wobbleAmount > 0) {
@@ -918,7 +892,6 @@ export default function GameScreen() {
     const lvl = levelRef.current;
 
     charAnim.setValue(characterY.current);
-    cruiseBobActive.current = true;
 
     if (isNeonMap) {
       const now = Date.now();
@@ -1020,23 +993,22 @@ export default function GameScreen() {
       }
     } else {
       const mp = movementProfileRef.current;
-      tapSideForce.current = sideForce * 0.8;
+      tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
-      const cruiseJumpMod = 0.92;
-      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * cruiseJumpMod;
+      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(charStretchX, { toValue: 1 + (1 - mp.flapSquashX) * 0.85, duration: Math.max(50, mp.flapSquashDuration * 0.7), useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 0.96, friction: mp.flapSpringFriction * 0.7, tension: mp.flapSpringTension * 1.1, useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 1, friction: mp.flapSpringFriction * 1.1, tension: mp.flapSpringTension * 0.7, useNativeDriver: true }),
+          Animated.timing(charStretchX, { toValue: 1 + (1 - mp.flapSquashX) * 1.1, duration: Math.max(40, mp.flapSquashDuration * 0.6), useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 0.94, friction: mp.flapSpringFriction * 0.6, tension: mp.flapSpringTension * 1.3, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 0.8, useNativeDriver: true }),
         ]),
         Animated.sequence([
-          Animated.timing(charStretchY, { toValue: mp.flapSquashX * 0.97, duration: Math.max(50, mp.flapSquashDuration * 0.7), useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1.04, friction: mp.flapSpringFriction * 0.7, tension: mp.flapSpringTension * 1.1, useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1, friction: mp.flapSpringFriction * 1.1, tension: mp.flapSpringTension * 0.7, useNativeDriver: true }),
+          Animated.timing(charStretchY, { toValue: mp.flapSquashX * 0.95, duration: Math.max(40, mp.flapSquashDuration * 0.6), useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1.06, friction: mp.flapSpringFriction * 0.6, tension: mp.flapSpringTension * 1.3, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 0.8, useNativeDriver: true }),
         ]),
       ]).start();
     }
@@ -1139,8 +1111,6 @@ export default function GameScreen() {
     charWobble.setValue(0);
     gameOverOpacity.setValue(0);
     gameOverScale.setValue(0.8);
-    cruiseBobPhase.current = 0;
-    gapPatternIndex.current = 0;
     setGameStatus('ready');
   }, [charAnim, charXAnim, charRotation, charStretchX, charStretchY, charWobble, gameOverOpacity, gameOverScale, levelUpAnim, levelUpScale, isNeonMap, trickSpinAnim, setGameStatus, setActiveTrick]);
 
@@ -1152,7 +1122,7 @@ export default function GameScreen() {
 
   const charRotateDeg = charRotation.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: ['-16deg', '0deg', '14deg'],
+    outputRange: ['-22deg', '0deg', '20deg'],
   });
 
   const charWobbleDeg = charWobble.interpolate({
