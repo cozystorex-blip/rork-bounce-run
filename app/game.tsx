@@ -416,8 +416,10 @@ export default function GameScreen() {
   }, [safeTop]);
 
   const checkCollision = useCallback((cy: number, obs: Obstacle[]): boolean => {
-    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
-    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.90;
+    const scoreProg = Math.min(1, scoreRef.current / 40);
+    const squeezeShrink = Math.min(0.12, scoreProg * 0.08);
+    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * (GAME_CONFIG.HITBOX_SHRINK - squeezeShrink);
+    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * (0.90 - squeezeShrink * 0.4);
     const cx = getCharX();
     const halfHitX = hitSizeX / 2;
     const halfHitY = hitSizeY / 2;
@@ -447,12 +449,13 @@ export default function GameScreen() {
       const pipeRight = o.x + capHalfW;
 
       if (charRight > pipeLeft && charLeft < pipeRight) {
-        if (charTop < gapStart) return true;
-        if (charBottom > gapEnd) return true;
+        const angleGrace = scoreProg * 3.5;
+        if (charTop < gapStart - angleGrace) return true;
+        if (charBottom > gapEnd + angleGrace) return true;
 
-        if (prevBot <= gapEnd && charBottom > gapEnd) return true;
+        if (prevBot <= gapEnd + angleGrace && charBottom > gapEnd + angleGrace) return true;
 
-        if (charBottom > gapEnd - 2 && charTop < gapEnd + POLE_CAP_H) return true;
+        if (charBottom > gapEnd - 2 + angleGrace && charTop < gapEnd + POLE_CAP_H) return true;
       }
 
       const shaftHalfW = POLE_SHAFT_W / 2;
@@ -861,23 +864,25 @@ export default function GameScreen() {
     const momentumScale = 1 + gallopMomentum.current * 0.022;
     const streakFlow = Math.min(1, rhythmStreak.current / 10);
     const cadenceScale = polePassCadence.current > 20 && polePassCadence.current < 150 ? 1.0 + streakFlow * 0.018 : 1.0;
+    const squeezeProg = Math.min(1, scoreRef.current / 35);
+    const squeezeBoost = 1 + squeezeProg * 0.7;
     for (let pi = 0; pi < nearObs.length; pi++) {
       const po = nearObs[pi];
       const distToBlob = po.x - proxCx;
-      if (!po.passed && distToBlob > 0 && distToBlob < POLE_CAP_W * 3.5) {
-        const proximity = 1 - (distToBlob / (POLE_CAP_W * 3.5));
+      if (!po.passed && distToBlob > 0 && distToBlob < POLE_CAP_W * 4.2) {
+        const proximity = 1 - (distToBlob / (POLE_CAP_W * 4.2));
         const tenseFactor = proximity * proximity * proximity;
-        const squeezeFactor = tenseFactor * 0.022 * momentumScale * cadenceScale * blobby;
+        const squeezeFactor = tenseFactor * 0.035 * momentumScale * cadenceScale * blobby * squeezeBoost;
         stretchXVal *= (1 - squeezeFactor);
-        stretchYVal *= (1 + squeezeFactor * 0.35);
+        stretchYVal *= (1 + squeezeFactor * 0.45);
         break;
-      } else if (po.passed && distToBlob > -POLE_CAP_W * 3.0 && distToBlob < 0) {
+      } else if (po.passed && distToBlob > -POLE_CAP_W * 3.5 && distToBlob < 0) {
         const exitDist = Math.abs(distToBlob);
-        const exitT = 1 - (exitDist / (POLE_CAP_W * 3.0));
+        const exitT = 1 - (exitDist / (POLE_CAP_W * 3.5));
         const exitEase = exitT * exitT * (3 - 2 * exitT);
-        const releaseFactor = exitEase * 0.016 * momentumScale * cadenceScale * blobby;
+        const releaseFactor = exitEase * 0.025 * momentumScale * cadenceScale * blobby * squeezeBoost;
         stretchXVal *= (1 + releaseFactor);
-        stretchYVal *= (1 - releaseFactor * 0.2);
+        stretchYVal *= (1 - releaseFactor * 0.25);
         break;
       }
     }
