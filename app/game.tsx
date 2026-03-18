@@ -25,7 +25,6 @@ import { SCREEN, scale, verticalScale, moderateScale, GROUND_HEIGHT, MODAL } fro
 import { audioManager } from '@/utils/audio';
 import { getMapTheme } from '@/constants/maps';
 import { gameStyles as styles, trickIconStyles } from '@/constants/gameStyles';
-import { BLOB_EFFECTS, EFFECT_SPAWN_INTERVAL, EFFECT_PICKUP_RADIUS, EFFECT_COLLECT_DISTANCE, EFFECT_SPAWN_WEIGHTS, BlobEffectType, BlobEffectConfig, EffectPickup, ActiveBlobEffect } from '@/constants/effects';
 
 const SCREEN_WIDTH = SCREEN.width;
 const SCREEN_HEIGHT = SCREEN.height;
@@ -60,8 +59,6 @@ interface FloatingScore {
 }
 
 type GameStatus = 'ready' | 'playing' | 'paused' | 'over';
-
-const EFFECT_ORB_SIZE = scale(28);
 
 type TrickType = 'boost' | 'dive' | 'barrel_left' | 'barrel_right' | 'super_flap';
 
@@ -176,8 +173,6 @@ export default function GameScreen() {
 
   const speedMultiplier = useRef(1);
   const tapSpeedBonus = useRef(0);
-  const poleBoostTimer = useRef(0);
-  const poleBoostStrength = useRef(0);
   const frameCount = useRef(0);
   const obstacleIdCounter = useRef(0);
   const lastObstacleSpawn = useRef(0);
@@ -197,9 +192,6 @@ export default function GameScreen() {
   const prevRotVal = useRef(0);
   const prevStretchX = useRef(1);
   const prevStretchY = useRef(1);
-
-  const cruiseBobPhase = useRef(0);
-  const cruiseBobActive = useRef(true);
 
   const xDrift = useRef(0);
   const targetXDrift = useRef(0);
@@ -231,18 +223,6 @@ export default function GameScreen() {
   const needsScoreUpdate = useRef(false);
   const [musicOn, setMusicOn] = useState<boolean>(stats.musicEnabled);
   const shareScaleAnim = useRef(new Animated.Value(1)).current;
-
-  const effectPickups = useRef<EffectPickup[]>([]);
-  const effectPickupIdCounter = useRef(0);
-  const activeEffect = useRef<ActiveBlobEffect | null>(null);
-  const [activeEffectState, setActiveEffectState] = useState<ActiveBlobEffect | null>(null);
-  const obstaclesSinceLastPickup = useRef(0);
-  const [showEffectActivate, setShowEffectActivate] = useState<{ type: BlobEffectType; config: BlobEffectConfig } | null>(null);
-  const effectActivateAnim = useRef(new Animated.Value(0)).current;
-  const effectActivateScale = useRef(new Animated.Value(0.3)).current;
-  const effectRingAnim = useRef(new Animated.Value(0)).current;
-  const effectRingOpacity = useRef(new Animated.Value(0)).current;
-  const effectPulseAnim = useRef(new Animated.Value(1)).current;
 
   const [activeTrick, setActiveTrickState] = useState<{ type: TrickType; info: TrickInfo } | null>(null);
   const activeTrickRef = useRef<{ type: TrickType; info: TrickInfo } | null>(null);
@@ -373,8 +353,6 @@ export default function GameScreen() {
     }, 2000);
   }, [comboAnim]);
 
-  const gapPatternIndex = useRef(0);
-
   const spawnObstacle = useCallback(() => {
     const lvl = levelRef.current;
     const gapSize = lvl.fastGap;
@@ -384,29 +362,14 @@ export default function GameScreen() {
     const gapCenterMax = floorY - OBSTACLE_TUNING.GAP_CENTER_MAX_PADDING - gapSize / 2;
     const safeMin = Math.min(gapCenterMin, gapCenterMax);
     const safeMax = Math.max(gapCenterMin, gapCenterMax);
-
-    const range = safeMax - safeMin;
-    const zones = [safeMin + range * 0.25, safeMin + range * 0.5, safeMin + range * 0.75];
-    const patterns = [
-      [1, 0, 2, 1, 0, 1, 2, 0],
-      [0, 1, 1, 2, 0, 2, 1, 0],
-      [2, 1, 0, 1, 2, 0, 1, 2],
-    ];
-    const patternSet = patterns[Math.floor(obstacleIdCounter.current / 8) % patterns.length];
-    const patIdx = obstacleIdCounter.current % 8;
-    const zoneTarget = zones[patternSet[patIdx]];
-
-    const jitter = (Math.random() - 0.5) * range * 0.18;
-    const blendWithLast = 0.3;
-    const rawTarget = zoneTarget + jitter;
-    const blended = rawTarget * (1 - blendWithLast) + lastGapY.current * blendWithLast;
-
+    const shiftFactor = 0.40 + (lvl.level - 1) * 0.05;
+    const maxShift = (safeMax - safeMin) * Math.min(shiftFactor, 0.7);
+    const rawTarget = lastGapY.current + (Math.random() - 0.5) * maxShift * 2;
     const midY = (safeMin + safeMax) / 2;
-    const pullToCenter = 0.12;
-    const targetY = blended + (midY - blended) * pullToCenter;
+    const pullToCenter = 0.15;
+    const targetY = rawTarget + (midY - rawTarget) * pullToCenter;
     const gapCenter = Math.max(safeMin, Math.min(safeMax, targetY));
     lastGapY.current = gapCenter;
-    gapPatternIndex.current++;
     const pair = BLOCK_COLOR_PAIRS[obstacleIdCounter.current % BLOCK_COLOR_PAIRS.length];
     const pipeAngle = 0;
     obstacles.current.push({
@@ -419,29 +382,11 @@ export default function GameScreen() {
       passed: false,
       angle: pipeAngle,
     });
-
-    obstaclesSinceLastPickup.current++;
-    if (obstaclesSinceLastPickup.current >= EFFECT_SPAWN_INTERVAL && scoreRef.current >= 3) {
-      obstaclesSinceLastPickup.current = 0;
-      const effectType = EFFECT_SPAWN_WEIGHTS[Math.floor(Math.random() * EFFECT_SPAWN_WEIGHTS.length)];
-      effectPickups.current.push({
-        id: effectPickupIdCounter.current++,
-        x: SCREEN_WIDTH + 50,
-        y: gapCenter,
-        type: effectType,
-        collected: false,
-      });
-    }
   }, [safeTop]);
 
   const checkCollision = useCallback((cy: number, obs: Obstacle[]): boolean => {
-    const eff = activeEffect.current;
-    const squeezeActive = eff?.type === 'squeeze' && eff.remaining > 0;
-    const ghostActive = eff?.type === 'ghost' && eff.remaining > 0 && !eff.shieldUsed;
-    const shieldActive = eff?.type === 'shield' && eff.remaining > 0 && !eff.shieldUsed;
-    const hitShrink = squeezeActive ? 0.78 : GAME_CONFIG.HITBOX_SHRINK;
-    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * hitShrink;
-    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * (squeezeActive ? 0.88 : 0.97);
+    const hitSizeX = GAME_CONFIG.CHARACTER_SIZE * GAME_CONFIG.HITBOX_SHRINK;
+    const hitSizeY = GAME_CONFIG.CHARACTER_SIZE * 0.97;
     const cx = getCharX();
     const halfHitX = hitSizeX / 2;
     const halfHitY = hitSizeY / 2;
@@ -454,19 +399,6 @@ export default function GameScreen() {
     const ceilingY = safeTop;
     const floorY = SCREEN_HEIGHT - GROUND_HEIGHT;
     if (charTop <= ceilingY || charBottom >= floorY) {
-      if (shieldActive && eff) {
-        eff.shieldUsed = true;
-        activeEffect.current = { ...eff, shieldUsed: true };
-        setActiveEffectState({ ...eff, shieldUsed: true });
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-        return false;
-      }
-      if (ghostActive && eff) {
-        eff.shieldUsed = true;
-        activeEffect.current = { ...eff, shieldUsed: true };
-        setActiveEffectState({ ...eff, shieldUsed: true });
-        return false;
-      }
       return true;
     }
 
@@ -483,12 +415,13 @@ export default function GameScreen() {
       const pipeLeft = o.x - capHalfW - speedBuf;
       const pipeRight = o.x + capHalfW;
 
-      let poleHit = false;
       if (charRight > pipeLeft && charLeft < pipeRight) {
-        if (charTop < gapStart) poleHit = true;
-        if (charBottom > gapEnd) poleHit = true;
-        if (prevBot <= gapEnd && charBottom > gapEnd) poleHit = true;
-        if (charBottom > gapEnd - 2 && charTop < gapEnd + POLE_CAP_H) poleHit = true;
+        if (charTop < gapStart) return true;
+        if (charBottom > gapEnd) return true;
+
+        if (prevBot <= gapEnd && charBottom > gapEnd) return true;
+
+        if (charBottom > gapEnd - 2 && charTop < gapEnd + POLE_CAP_H) return true;
       }
 
       const shaftHalfW = POLE_SHAFT_W / 2;
@@ -496,8 +429,8 @@ export default function GameScreen() {
       const shaftRight = o.x + shaftHalfW;
 
       if (charRight > shaftLeft && charLeft < shaftRight) {
-        if (charTop < gapStart - POLE_CAP_H) poleHit = true;
-        if (charBottom > gapEnd + POLE_CAP_H) poleHit = true;
+        if (charTop < gapStart - POLE_CAP_H) return true;
+        if (charBottom > gapEnd + POLE_CAP_H) return true;
       }
 
       const baseHalfW = POLE_BASE_W / 2;
@@ -507,24 +440,7 @@ export default function GameScreen() {
         const botShaftTop = gapEnd + POLE_CAP_H;
         const botShaftH = Math.max(0, floorY - botShaftTop - POLE_BASE_H);
         const botBaseTop = botShaftTop + botShaftH;
-        if (charBottom > botBaseTop) poleHit = true;
-      }
-
-      if (poleHit) {
-        if (shieldActive && eff && !eff.shieldUsed) {
-          eff.shieldUsed = true;
-          activeEffect.current = { ...eff, shieldUsed: true };
-          setActiveEffectState({ ...eff, shieldUsed: true });
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-          return false;
-        }
-        if (ghostActive && eff && !eff.shieldUsed) {
-          eff.shieldUsed = true;
-          activeEffect.current = { ...eff, shieldUsed: true };
-          setActiveEffectState({ ...eff, shieldUsed: true });
-          return false;
-        }
-        return true;
+        if (charBottom > botBaseTop) return true;
       }
     }
     return false;
@@ -582,48 +498,6 @@ export default function GameScreen() {
     });
   }, []);
 
-  const activateEffect = useCallback((type: BlobEffectType) => {
-    const config = BLOB_EFFECTS[type];
-    const newEffect: ActiveBlobEffect = {
-      type,
-      config,
-      remaining: config.duration,
-      shieldUsed: false,
-    };
-    activeEffect.current = newEffect;
-    setActiveEffectState(newEffect);
-    setShowEffectActivate({ type, config });
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    effectActivateAnim.setValue(0);
-    effectActivateScale.setValue(0.3);
-    Animated.parallel([
-      Animated.sequence([
-        Animated.timing(effectActivateAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
-        Animated.delay(600),
-        Animated.timing(effectActivateAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
-      ]),
-      Animated.spring(effectActivateScale, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
-    ]).start(() => setShowEffectActivate(null));
-
-    effectRingAnim.setValue(0);
-    effectRingOpacity.setValue(0.8);
-    Animated.parallel([
-      Animated.timing(effectRingAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.timing(effectRingOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
-    ]).start();
-
-    effectPulseAnim.setValue(1);
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(effectPulseAnim, { toValue: 1.15, duration: 500, useNativeDriver: true }),
-        Animated.timing(effectPulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-      ])
-    );
-    pulse.start();
-    setTimeout(() => pulse.stop(), config.duration * GAME_CONFIG.FRAME_RATE);
-  }, [effectActivateAnim, effectActivateScale, effectRingAnim, effectRingOpacity, effectPulseAnim]);
-
   const triggerGameOver = useCallback(() => {
     setGameStatus('over');
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -672,36 +546,25 @@ export default function GameScreen() {
 
     const lvl = levelRef.current;
     const mp = movementProfileRef.current;
-    const eff = activeEffect.current;
-    const isFloating = eff?.type === 'float' && eff.remaining > 0;
-    const isBurst = eff?.type === 'burst' && eff.remaining > 0;
-    const isFlow = eff?.type === 'flow' && eff.remaining > 0;
-    const gravMod = isFloating ? 0.65 : isFlow ? 0.88 : 1.0;
-    const gravBase = lvl.fastGravity * mp.gravityMultiplier * 0.88 * gravMod;
+    const gravBase = lvl.fastGravity * mp.gravityMultiplier;
+    const velSign = velocity.current < 0 ? -1 : 1;
     const velMag = Math.abs(velocity.current);
     const gravCurve = velocity.current < 0
-      ? gravBase * (0.82 + 0.10 * Math.min(1, velMag / 5))
-      : gravBase * (0.92 + 0.03 * Math.min(1, velMag / 4));
+      ? gravBase * (0.88 + 0.12 * Math.min(1, velMag / 5))
+      : gravBase * (1.0 + 0.04 * Math.min(1, velMag / 4));
     velocity.current += gravCurve;
-    velocity.current *= mp.fallDamping * 1.004;
+    velocity.current *= mp.fallDamping;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
-    cruiseBobPhase.current += GAME_CONFIG.CRUISE_BOB_SPEED;
-    if (cruiseBobPhase.current > Math.PI * 2) cruiseBobPhase.current -= Math.PI * 2;
-    const bobForce = Math.sin(cruiseBobPhase.current) * GAME_CONFIG.CRUISE_BOB_AMPLITUDE;
-    velocity.current += bobForce * 0.35;
-
-    velocity.current *= GAME_CONFIG.CRUISE_MOMENTUM_DAMPING;
-
     if (velocity.current < 0) {
-      const riseEase = 1.0 - Math.min(0.28, Math.abs(velocity.current) * 0.012);
-      const riseSpeed = velocity.current * riseEase * (1.0 + (1.0 - mp.riseSmoothing) * 0.15);
+      const riseEase = 1.0 - Math.min(0.32, Math.abs(velocity.current) * 0.014);
+      const riseSpeed = velocity.current * riseEase * (1.0 + (1.0 - mp.riseSmoothing) * 0.18);
       characterY.current += riseSpeed;
     } else {
-      const fallEase = 1.0 - Math.max(0, (velocity.current - 2.0) * 0.018);
-      characterY.current += velocity.current * Math.max(0.90, fallEase);
+      const fallEase = 1.0 - Math.max(0, (velocity.current - 2.5) * 0.022);
+      characterY.current += velocity.current * Math.max(0.87, fallEase);
     }
 
     const minY = safeTop + 2;
@@ -760,16 +623,8 @@ export default function GameScreen() {
 
     tapSpeedBonus.current *= GAME_CONFIG.TAP_SPEED_DECAY;
     if (tapSpeedBonus.current < 0.001) tapSpeedBonus.current = 0;
-    if (poleBoostTimer.current > 0) {
-      poleBoostTimer.current--;
-      if (poleBoostTimer.current <= 0) {
-        poleBoostStrength.current = 0;
-      }
-    }
     const clampedTapBonus = Math.min(tapSpeedBonus.current, GAME_CONFIG.MAX_TAP_SPEED_BONUS);
-    const poleBoost = poleBoostTimer.current > 0 ? poleBoostStrength.current * (poleBoostTimer.current / 12) : 0;
-    const burstBonus = isBurst ? 0.15 : 0;
-    const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus + poleBoost + burstBonus) * lvl.fastSpeedMult;
+    const currentSpeed = GAME_CONFIG.OBSTACLE_SPEED * (speedMultiplier.current + clampedTapBonus) * lvl.fastSpeedMult;
     currentObstacleSpeed.current = currentSpeed;
     const cx = getCharX();
 
@@ -785,39 +640,6 @@ export default function GameScreen() {
     }
     obs.length = i;
 
-    const picks = effectPickups.current;
-    const picksLen = picks.length;
-    let pi = 0;
-    const charCenterX = cx;
-    const charCenterY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
-    for (let pj = 0; pj < picksLen; pj++) {
-      picks[pj].x -= currentSpeed;
-      if (!picks[pj].collected) {
-        const dx = picks[pj].x - charCenterX;
-        const dy = picks[pj].y - charCenterY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < EFFECT_COLLECT_DISTANCE) {
-          picks[pj].collected = true;
-          activateEffect(picks[pj].type);
-        }
-      }
-      if (picks[pj].x > -60) {
-        picks[pi] = picks[pj];
-        pi++;
-      }
-    }
-    picks.length = pi;
-
-    if (eff && eff.remaining > 0) {
-      eff.remaining--;
-      if (eff.remaining <= 0) {
-        activeEffect.current = null;
-        setActiveEffectState(null);
-      } else {
-        activeEffect.current = eff;
-      }
-    }
-
     let scored = false;
     let newlyPassed = 0;
     for (let si = 0; si < obs.length; si++) {
@@ -828,28 +650,6 @@ export default function GameScreen() {
         scored = true;
         newlyPassed++;
         spawnFloatingScore(o.x, o.gapY, scoreRef.current);
-
-        const gap = o.gapSize ?? GAME_CONFIG.OBSTACLE_GAP;
-        const charCenter = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
-        const distFromCenter = Math.abs(charCenter - o.gapY);
-        const maxDist = gap / 2;
-        const cleanness = Math.max(0, 1 - distFromCenter / maxDist);
-        const boostAmount = 0.18 + cleanness * 0.22;
-        poleBoostStrength.current = boostAmount;
-        poleBoostTimer.current = 12;
-
-        charStretchX.stopAnimation();
-        charStretchY.stopAnimation();
-        Animated.parallel([
-          Animated.sequence([
-            Animated.timing(charStretchX, { toValue: 1.18 + cleanness * 0.08, duration: 80, useNativeDriver: true }),
-            Animated.spring(charStretchX, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
-          ]),
-          Animated.sequence([
-            Animated.timing(charStretchY, { toValue: 0.86 - cleanness * 0.04, duration: 80, useNativeDriver: true }),
-            Animated.spring(charStretchY, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
-          ]),
-        ]).start();
       }
     }
 
@@ -928,8 +728,8 @@ export default function GameScreen() {
     prevCharY.current = characterY.current;
 
     charAnim.setValue(characterY.current);
-    const rotVal = Math.max(-1, Math.min(1, velocity.current / 10));
-    if (Math.abs(rotVal - prevRotVal.current) > 0.04) {
+    const rotVal = Math.max(-1, Math.min(1, velocity.current / 8));
+    if (Math.abs(rotVal - prevRotVal.current) > 0.05) {
       charRotation.setValue(rotVal);
       prevRotVal.current = rotVal;
     }
@@ -952,7 +752,7 @@ export default function GameScreen() {
 
     return true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spawnObstacle, checkCollision, triggerGameOver, charAnim, charXAnim, charRotation, scorePopScale, charStretchX, charStretchY, levelUpAnim, levelUpScale, spawnFloatingScore, getCharX, isNeonMap, activateEffect]);
+  }, [spawnObstacle, checkCollision, triggerGameOver, charAnim, charXAnim, charRotation, scorePopScale, charStretchX, charStretchY, levelUpAnim, levelUpScale, spawnFloatingScore, getCharX, isNeonMap]);
 
   stepPhysicsRef.current = stepPhysics;
 
@@ -1056,24 +856,24 @@ export default function GameScreen() {
 
     if (gameStatusRef.current === 'ready') {
       setGameStatus('playing');
-      tapSideForce.current = sideForce * 0.8;
+      tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
       const mp = movementProfileRef.current;
-      velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 0.95;
+      velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
       charAnim.setValue(characterY.current);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(charStretchX, { toValue: 1.12, duration: 70, useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 0.95, friction: 4, tension: 160, useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 1, friction: 6, tension: 100, useNativeDriver: true }),
+          Animated.timing(charStretchX, { toValue: 1.18, duration: 60, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 0.92, friction: 3, tension: 200, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
         ]),
         Animated.sequence([
-          Animated.timing(charStretchY, { toValue: 0.88, duration: 70, useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1.06, friction: 4, tension: 160, useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1, friction: 6, tension: 100, useNativeDriver: true }),
+          Animated.timing(charStretchY, { toValue: 0.82, duration: 60, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1.1, friction: 3, tension: 200, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
         ]),
       ]).start();
       if (mp.wobbleAmount > 0) {
@@ -1092,7 +892,6 @@ export default function GameScreen() {
     const lvl = levelRef.current;
 
     charAnim.setValue(characterY.current);
-    cruiseBobActive.current = true;
 
     if (isNeonMap) {
       const now = Date.now();
@@ -1194,23 +993,22 @@ export default function GameScreen() {
       }
     } else {
       const mp = movementProfileRef.current;
-      tapSideForce.current = sideForce * 0.8;
+      tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
-      const cruiseJumpMod = 0.92;
-      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * cruiseJumpMod;
+      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(charStretchX, { toValue: 1 + (1 - mp.flapSquashX) * 0.85, duration: Math.max(50, mp.flapSquashDuration * 0.7), useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 0.96, friction: mp.flapSpringFriction * 0.7, tension: mp.flapSpringTension * 1.1, useNativeDriver: true }),
-          Animated.spring(charStretchX, { toValue: 1, friction: mp.flapSpringFriction * 1.1, tension: mp.flapSpringTension * 0.7, useNativeDriver: true }),
+          Animated.timing(charStretchX, { toValue: 1 + (1 - mp.flapSquashX) * 1.1, duration: Math.max(40, mp.flapSquashDuration * 0.6), useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 0.94, friction: mp.flapSpringFriction * 0.6, tension: mp.flapSpringTension * 1.3, useNativeDriver: true }),
+          Animated.spring(charStretchX, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 0.8, useNativeDriver: true }),
         ]),
         Animated.sequence([
-          Animated.timing(charStretchY, { toValue: mp.flapSquashX * 0.97, duration: Math.max(50, mp.flapSquashDuration * 0.7), useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1.04, friction: mp.flapSpringFriction * 0.7, tension: mp.flapSpringTension * 1.1, useNativeDriver: true }),
-          Animated.spring(charStretchY, { toValue: 1, friction: mp.flapSpringFriction * 1.1, tension: mp.flapSpringTension * 0.7, useNativeDriver: true }),
+          Animated.timing(charStretchY, { toValue: mp.flapSquashX * 0.95, duration: Math.max(40, mp.flapSquashDuration * 0.6), useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1.06, friction: mp.flapSpringFriction * 0.6, tension: mp.flapSpringTension * 1.3, useNativeDriver: true }),
+          Animated.spring(charStretchY, { toValue: 1, friction: mp.flapSpringFriction, tension: mp.flapSpringTension * 0.8, useNativeDriver: true }),
         ]),
       ]).start();
     }
@@ -1281,8 +1079,6 @@ export default function GameScreen() {
     clouds.current = Array.from({ length: 2 }, (_, i) => generateCloud(i, Math.random() * SCREEN_WIDTH));
     speedMultiplier.current = 1;
     tapSpeedBonus.current = 0;
-    poleBoostTimer.current = 0;
-    poleBoostStrength.current = 0;
     frameCount.current = 0;
     obstacleIdCounter.current = 0;
     lastObstacleSpawn.current = 0;
@@ -1315,21 +1111,8 @@ export default function GameScreen() {
     charWobble.setValue(0);
     gameOverOpacity.setValue(0);
     gameOverScale.setValue(0.8);
-    cruiseBobPhase.current = 0;
-    gapPatternIndex.current = 0;
-    effectPickups.current = [];
-    effectPickupIdCounter.current = 0;
-    activeEffect.current = null;
-    setActiveEffectState(null);
-    obstaclesSinceLastPickup.current = 0;
-    setShowEffectActivate(null);
-    effectActivateAnim.setValue(0);
-    effectActivateScale.setValue(0.3);
-    effectRingAnim.setValue(0);
-    effectRingOpacity.setValue(0);
-    effectPulseAnim.setValue(1);
     setGameStatus('ready');
-  }, [charAnim, charXAnim, charRotation, charStretchX, charStretchY, charWobble, gameOverOpacity, gameOverScale, levelUpAnim, levelUpScale, isNeonMap, trickSpinAnim, setGameStatus, setActiveTrick, effectActivateAnim, effectActivateScale, effectRingAnim, effectRingOpacity, effectPulseAnim]);
+  }, [charAnim, charXAnim, charRotation, charStretchX, charStretchY, charWobble, gameOverOpacity, gameOverScale, levelUpAnim, levelUpScale, isNeonMap, trickSpinAnim, setGameStatus, setActiveTrick]);
 
   const handleHome = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1339,7 +1122,7 @@ export default function GameScreen() {
 
   const charRotateDeg = charRotation.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: ['-16deg', '0deg', '14deg'],
+    outputRange: ['-22deg', '0deg', '20deg'],
   });
 
   const charWobbleDeg = charWobble.interpolate({
@@ -1453,57 +1236,6 @@ export default function GameScreen() {
 
 
 
-  const renderedPickups = useMemo(() => {
-    const picks = effectPickups.current;
-    const result: React.ReactNode[] = [];
-    for (let idx = 0; idx < picks.length; idx++) {
-      const p = picks[idx];
-      if (p.collected || p.x < -60 || p.x > SCREEN_WIDTH + 60) continue;
-      const cfg = BLOB_EFFECTS[p.type];
-      result.push(
-        <View
-          key={p.id}
-          style={[
-            styles.effectPickup,
-            {
-              left: p.x - EFFECT_ORB_SIZE / 2,
-              top: p.y - EFFECT_ORB_SIZE / 2,
-            },
-          ]}
-          pointerEvents="none"
-        >
-          <View
-            style={[
-              styles.effectPickupGlow,
-              {
-                width: EFFECT_ORB_SIZE * 1.8,
-                height: EFFECT_ORB_SIZE * 1.8,
-                left: -EFFECT_ORB_SIZE * 0.4,
-                top: -EFFECT_ORB_SIZE * 0.4,
-                backgroundColor: cfg.glowColor,
-              },
-            ]}
-          />
-          <View
-            style={[
-              styles.effectPickupOrb,
-              {
-                width: EFFECT_ORB_SIZE,
-                height: EFFECT_ORB_SIZE,
-                backgroundColor: cfg.color + '30',
-                borderColor: cfg.color,
-              },
-            ]}
-          >
-            <Text style={styles.effectPickupIcon}>{cfg.icon}</Text>
-          </View>
-        </View>
-      );
-    }
-    return result;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renderTick]);
-
   const splatColors = useMemo(() => {
     const base = currentSkin?.bodyColor ?? '#FFD84A';
     return [base, base + 'CC', base + '99', '#FFE97A', base];
@@ -1616,7 +1348,6 @@ export default function GameScreen() {
         <Pressable onPressIn={(e) => handleTapRef.current(e)} testID="game-touch-area" style={styles.touchArea}>
             {renderedClouds}
             {renderedObstacles}
-            {renderedPickups}
 
             {groundStrip}
 
@@ -1638,23 +1369,6 @@ export default function GameScreen() {
                 },
               ]}
             >
-              {activeEffectState && activeEffectState.remaining > 0 && (
-                <Animated.View
-                  style={[
-                    styles.blobEffectRing,
-                    {
-                      width: GAME_CONFIG.CHARACTER_SIZE + 20,
-                      height: GAME_CONFIG.CHARACTER_SIZE + 20,
-                      left: -3,
-                      top: -3,
-                      borderColor: activeEffectState.config.color + '60',
-                      backgroundColor: activeEffectState.config.glowColor,
-                      transform: [{ scale: effectPulseAnim }],
-                    },
-                  ]}
-                  pointerEvents="none"
-                />
-              )}
               <Animated.View style={isNeonMap ? {
                 transform: [{ rotate: trickSpinAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-360deg', '0deg', '360deg'] }) }],
               } : undefined}>
@@ -1767,31 +1481,6 @@ export default function GameScreen() {
               </Animated.View>
             )}
 
-            {showEffectActivate && (
-              <Animated.View
-                style={[
-                  styles.effectActivateOverlay,
-                  {
-                    opacity: effectActivateAnim,
-                    transform: [{ scale: effectActivateScale }],
-                  },
-                ]}
-                pointerEvents="none"
-              >
-                <View style={[
-                  styles.effectActivateCard,
-                  {
-                    backgroundColor: showEffectActivate.config.color + '20',
-                    borderColor: showEffectActivate.config.color,
-                    shadowColor: showEffectActivate.config.color,
-                  },
-                ]}>
-                  <Text style={styles.effectActivateIcon}>{showEffectActivate.config.icon}</Text>
-                  <Text style={[styles.effectActivateText, { color: showEffectActivate.config.color }]}>{showEffectActivate.config.name}</Text>
-                </View>
-              </Animated.View>
-            )}
-
             {gameStatus === 'ready' && (
               <View style={styles.readyOverlay}>
                 <Animated.View style={{ transform: [{ scale: readyPulse }] }}>
@@ -1873,42 +1562,6 @@ export default function GameScreen() {
             </View>
           </View>
         </View>
-
-        {activeEffectState && activeEffectState.remaining > 0 && gameStatus === 'playing' && (
-          <View
-            style={[
-              styles.effectIndicator,
-              { top: safeTop + verticalScale(48) },
-            ]}
-            pointerEvents="none"
-          >
-            <View
-              style={[
-                styles.effectIndicatorPill,
-                {
-                  backgroundColor: activeEffectState.config.color + '20',
-                  borderColor: activeEffectState.config.color + '80',
-                  shadowColor: activeEffectState.config.color,
-                },
-              ]}
-            >
-              <Text style={styles.effectIndicatorIcon}>{activeEffectState.config.icon}</Text>
-              <Text style={[styles.effectIndicatorName, { color: activeEffectState.config.color }]}>
-                {activeEffectState.config.name}
-                {(activeEffectState.type === 'shield' || activeEffectState.type === 'ghost') && activeEffectState.shieldUsed ? ' (USED)' : ''}
-              </Text>
-              <View
-                style={[
-                  styles.effectTimerBar,
-                  {
-                    width: scale(40) * (activeEffectState.remaining / activeEffectState.config.duration),
-                    backgroundColor: activeEffectState.config.color,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        )}
 
         {gameStatus === 'paused' && (
           <View style={styles.pauseOverlay}>
