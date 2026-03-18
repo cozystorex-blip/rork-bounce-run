@@ -805,25 +805,6 @@ export const gameStyles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#A08040',
   },
-  hardZoneBadge: {
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: scale(18),
-    paddingVertical: verticalScale(8),
-    borderRadius: scale(16),
-    borderWidth: 2,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  hardZoneBadgeText: {
-    fontSize: moderateScale(13),
-    fontWeight: '900' as const,
-    letterSpacing: 2,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
 });
 
 export const trickIconStyles = StyleSheet.create({

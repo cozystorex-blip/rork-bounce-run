@@ -195,19 +195,6 @@ export default function GameScreen() {
   const rollbackIntensity = useRef(0);
   const rollbackDirection = useRef(0);
 
-  const hardZoneActive = useRef(false);
-  const hardZoneIntensity = useRef(0);
-  const hardZonePopupTimer = useRef(0);
-  const [showHardZonePopup, setShowHardZonePopup] = useState<boolean>(false);
-  const hardZonePopupAnim = useRef(new Animated.Value(0)).current;
-  const hardZonePopupScale = useRef(new Animated.Value(0.5)).current;
-  const lastHardZonePopupScore = useRef(0);
-
-  const cruiseBobPhase = useRef(0);
-  const cruiseMomentum = useRef(0);
-  const glideTimer = useRef(0);
-  const glideIntensity = useRef(0);
-
   const lastTapTime = useRef(0);
   const tapInterval = useRef(0);
   const rapidTapCount = useRef(0);
@@ -585,79 +572,17 @@ export default function GameScreen() {
 
     const lvl = levelRef.current;
     const mp = movementProfileRef.current;
-
-    cruiseBobPhase.current += 0.038;
-    const cruiseBob = Math.sin(cruiseBobPhase.current) * 0.12 + Math.sin(cruiseBobPhase.current * 1.7) * 0.05;
-    cruiseMomentum.current *= 0.965;
-    if (Math.abs(cruiseMomentum.current) < 0.001) cruiseMomentum.current = 0;
-
-    const currentSpeedFactor = speedMultiplier.current;
-    const speedT = Math.min(1, (currentSpeedFactor - 1) / 3.0);
-
-    const gravSoften = 1.0 - speedT * 0.12;
+    const gravBase = lvl.fastGravity * mp.gravityMultiplier;
     const velMag = Math.abs(velocity.current);
-    const gravScale = 0.85 + 0.15 * Math.min(1, velMag / 6.0);
-
-    const isGliding = glideTimer.current > 0;
-    const glideGravityReduction = isGliding ? (0.35 + glideIntensity.current * 0.15) : 1.0;
-    const gravBase = lvl.fastGravity * mp.gravityMultiplier * 0.85 * gravSoften * glideGravityReduction;
+    const gravScale = 0.92 + 0.08 * Math.min(1, velMag / 5.0);
     velocity.current += gravBase * gravScale;
-    velocity.current += cruiseBob * 0.008;
-    velocity.current += cruiseMomentum.current * 0.015;
     velocity.current *= mp.fallDamping;
-
-    const stabilizationForce = velocity.current > 0.5 ? -0.04 * Math.min(1, velocity.current / 4.0) : 0;
-    velocity.current += stabilizationForce;
-
-    if (isGliding) {
-      glideTimer.current--;
-      const glideStr = glideIntensity.current;
-      const glideDur = 18 + Math.min(1, rhythmStreak.current / 10) * 14 + speedT * 8;
-      const glideProgress = 1 - (glideTimer.current / glideDur);
-      const glideCurve = glideProgress < 0.3 ? glideProgress / 0.3 : 1.0 - (glideProgress - 0.3) * 0.2;
-      const glideDamping = 0.82 - speedT * 0.05;
-      velocity.current *= (glideDamping + (1 - glideDamping) * (1 - glideStr * glideCurve));
-
-      const charCenterYGlide = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
-      const cxGlide = getCharX();
-      let nextGapY = charCenterYGlide;
-      let foundNext = false;
-      const glideObs = obstacles.current;
-      for (let gi = 0; gi < glideObs.length; gi++) {
-        const go = glideObs[gi];
-        if (!go.passed && go.x > cxGlide) {
-          nextGapY = go.gapY;
-          foundNext = true;
-          break;
-        }
-      }
-
-      if (foundNext) {
-        const gapDiff = nextGapY - charCenterYGlide;
-        const glideSteerStrength = glideStr * glideCurve * 0.085 * (1 + speedT * 0.3);
-        const steerForce = Math.sign(gapDiff) * Math.min(Math.abs(gapDiff) * 0.012, 0.45) * glideSteerStrength;
-        velocity.current += steerForce;
-      }
-
-      const glideSmooth = glideStr * glideCurve * 0.06 * (1 + speedT * 0.5);
-      if (velocity.current > 0.2) velocity.current -= glideSmooth;
-      if (velocity.current < -0.2) velocity.current += glideSmooth * 0.4;
-      const glideLift = glideStr * glideCurve * 0.025;
-      if (velocity.current > 0.8) velocity.current -= glideLift;
-      const glideSpeedPush = glideStr * glideCurve * 0.018 * (1 + speedT * 0.3);
-      poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + glideSpeedPush * 0.008);
+    if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
+      velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
-    const maxFallVel = GAME_CONFIG.MAX_FALL_VELOCITY - speedT * 0.5;
-    if (velocity.current > maxFallVel) {
-      velocity.current = maxFallVel;
-    }
-    if (velocity.current > 2.5) {
-      velocity.current *= 0.985;
-    }
-
-    const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.007);
-    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.14 + speedT * 0.04) : 1.0;
+    const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.008);
+    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) : 1.0;
     characterY.current += velocity.current * moveSmooth * riseBoost;
 
     const minY = safeTop + 2;
@@ -903,103 +828,25 @@ export default function GameScreen() {
     const momentumScale = 1 + gallopMomentum.current * 0.022;
     const streakFlow = Math.min(1, rhythmStreak.current / 10);
     const cadenceScale = polePassCadence.current > 20 && polePassCadence.current < 150 ? 1.0 + streakFlow * 0.018 : 1.0;
-
-    const levelDifficultyT = Math.min(1, (lvl.level - 1) / 6);
-    const hardSqueezeBoost = 1.0 + levelDifficultyT * 1.2;
-    const hardReleaseBoost = 1.0 + levelDifficultyT * 0.8;
-
-    let isApproachingPole = false;
-    let approachTightness = 0;
-
     for (let pi = 0; pi < nearObs.length; pi++) {
       const po = nearObs[pi];
       const distToBlob = po.x - proxCx;
       if (!po.passed && distToBlob > 0 && distToBlob < POLE_CAP_W * 3.5) {
         const proximity = 1 - (distToBlob / (POLE_CAP_W * 3.5));
         const tenseFactor = proximity * proximity * proximity;
-        const squeezeFactor = tenseFactor * 0.022 * momentumScale * cadenceScale * blobby * hardSqueezeBoost;
+        const squeezeFactor = tenseFactor * 0.022 * momentumScale * cadenceScale * blobby;
         stretchXVal *= (1 - squeezeFactor);
         stretchYVal *= (1 + squeezeFactor * 0.35);
-
-        const charCY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
-        const halfGapApproach = po.gapSize / 2;
-        const distFromGapCenter = Math.abs(charCY - po.gapY);
-        approachTightness = distFromGapCenter / halfGapApproach;
-        isApproachingPole = proximity > 0.4 && approachTightness > 0.5;
-
-        if (isApproachingPole && lvl.level >= 3) {
-          const tightSqueeze = Math.min(1, (approachTightness - 0.5) / 0.4);
-          const emergencySqueeze = tightSqueeze * tenseFactor * 0.015 * levelDifficultyT;
-          stretchXVal *= (1 - emergencySqueeze);
-          stretchYVal *= (1 + emergencySqueeze * 0.6);
-        }
         break;
       } else if (po.passed && distToBlob > -POLE_CAP_W * 3.0 && distToBlob < 0) {
         const exitDist = Math.abs(distToBlob);
         const exitT = 1 - (exitDist / (POLE_CAP_W * 3.0));
         const exitEase = exitT * exitT * (3 - 2 * exitT);
-        const releaseFactor = exitEase * 0.016 * momentumScale * cadenceScale * blobby * hardReleaseBoost;
+        const releaseFactor = exitEase * 0.016 * momentumScale * cadenceScale * blobby;
         stretchXVal *= (1 + releaseFactor);
         stretchYVal *= (1 - releaseFactor * 0.2);
-
-        if (lvl.level >= 4 && exitT > 0.6) {
-          const popRelease = (exitT - 0.6) / 0.4;
-          const popBounce = popRelease * 0.008 * levelDifficultyT;
-          stretchYVal *= (1 + popBounce);
-          stretchXVal *= (1 - popBounce * 0.4);
-        }
         break;
       }
-    }
-
-    if (isApproachingPole && lvl.level >= 4 && approachTightness > 0.6 && scoreRef.current > lastHardZonePopupScore.current + 3) {
-      hardZoneActive.current = true;
-      hardZoneIntensity.current = Math.min(1, (approachTightness - 0.6) / 0.3 * levelDifficultyT);
-      if (hardZonePopupTimer.current <= 0) {
-        hardZonePopupTimer.current = 60;
-        lastHardZonePopupScore.current = scoreRef.current;
-        setShowHardZonePopup(true);
-        hardZonePopupAnim.setValue(0);
-        hardZonePopupScale.setValue(0.5);
-        Animated.parallel([
-          Animated.sequence([
-            Animated.timing(hardZonePopupAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
-            Animated.delay(600),
-            Animated.timing(hardZonePopupAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-          ]),
-          Animated.spring(hardZonePopupScale, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }),
-        ]).start(() => setShowHardZonePopup(false));
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-    } else {
-      hardZoneActive.current = false;
-      hardZoneIntensity.current *= 0.92;
-    }
-    if (hardZonePopupTimer.current > 0) hardZonePopupTimer.current--;
-
-    if (glideTimer.current > 0) {
-      const glideDur = 18 + Math.min(1, rhythmStreak.current / 10) * 14 + speedT * 8;
-      const glideT = glideTimer.current / glideDur;
-      const glideStr = glideIntensity.current;
-      if (glideT > 0.7) {
-        const squeezeIn = (glideT - 0.7) / 0.3;
-        const eased = squeezeIn * squeezeIn;
-        stretchXVal *= (1 - eased * 0.04 * glideStr * blobby);
-        stretchYVal *= (1 + eased * 0.055 * glideStr * blobby);
-      } else if (glideT > 0.25) {
-        const widenPhase = (glideT - 0.25) / 0.45;
-        const eased = Math.sin(widenPhase * Math.PI);
-        stretchXVal *= (1 + eased * 0.035 * glideStr * blobby);
-        stretchYVal *= (1 - eased * 0.02 * glideStr * blobby);
-      } else {
-        const settleOut = glideT / 0.25;
-        const gentle = settleOut * settleOut;
-        stretchXVal *= (1 + gentle * 0.012 * glideStr);
-        stretchYVal *= (1 - gentle * 0.006 * glideStr);
-      }
-      const glideStreamline = glideStr * 0.008 * (1 + speedT * 0.4);
-      stretchXVal *= (1 - glideStreamline);
-      stretchYVal *= (1 + glideStreamline * 0.5);
     }
 
     prevVelSign.current = vel;
@@ -1070,27 +917,17 @@ export default function GameScreen() {
         const clearBoost = GAME_CONFIG.POLE_PASS_SPEED_KICK + streakFactor * 0.025 + cadenceQuality * 0.02;
         poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + clearBoost);
 
-        const lvlPulseBoost = Math.min(1, (lvl.level - 1) / 6) * 0.3;
-        polePulseTimer.current = 28 + Math.min(4, lvl.level);
-        polePulseIntensity.current = Math.min(1.8, 0.6 + consecutiveClears.current * 0.12 + streakFactor * 0.3 + lvlPulseBoost);
-
-        const lvlGlideBoost = Math.min(1, (lvl.level - 1) / 6) * 0.25;
-        const glideStrength = 0.5 + streakFactor * 0.4 + cadenceQuality * 0.3 + lvlGlideBoost;
-        const lvlGlideDuration = Math.round(lvl.level >= 4 ? 6 : 0);
-        glideTimer.current = Math.round(24 + streakFactor * 14 + speedT * 8 + lvlGlideDuration);
-        glideIntensity.current = Math.min(1.0, glideStrength);
-        cruiseMomentum.current = Math.min(0.8, cruiseMomentum.current + 0.15 + streakFactor * 0.1);
+        polePulseTimer.current = 28;
+        polePulseIntensity.current = Math.min(1.5, 0.6 + consecutiveClears.current * 0.12 + streakFactor * 0.3);
 
         const charCenterY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
         const halfGap = o.gapSize / 2;
         const distFromCenter = Math.abs(charCenterY - o.gapY);
         const gapTightness = distFromCenter / halfGap;
-        const tightThreshold = Math.max(0.30, 0.45 - lvl.level * 0.02);
-        if (gapTightness > tightThreshold) {
-          const tightFactor = Math.min(1, (gapTightness - tightThreshold) / 0.45);
-          const lvlRollbackBoost = 1.0 + Math.min(1, (lvl.level - 1) / 6) * 0.5;
-          rollbackTimer.current = 24 + Math.min(6, lvl.level);
-          rollbackIntensity.current = tightFactor * tightFactor * (0.6 + blobby * 0.4) * lvlRollbackBoost;
+        if (gapTightness > 0.45) {
+          const tightFactor = Math.min(1, (gapTightness - 0.45) / 0.45);
+          rollbackTimer.current = 24;
+          rollbackIntensity.current = tightFactor * tightFactor * (0.6 + blobby * 0.4);
           rollbackDirection.current = charCenterY > o.gapY ? 1 : -1;
         }
 
@@ -1098,8 +935,8 @@ export default function GameScreen() {
         const momentumBounce = gallopMomentum.current * 0.012;
         const streakBounce = streakFactor * 0.025;
         const rhythmFlow = cadenceQuality * 0.014;
-        const gallopBounce = -0.12 - cadenceBonus * 0.5 - momentumBounce * 0.5 - streakBounce * 0.5 - rhythmFlow * 0.5 - Math.min(0.03, Math.abs(velocity.current) * 0.003);
-        if (velocity.current > -1.8) {
+        const gallopBounce = -0.2 - cadenceBonus - momentumBounce - streakBounce - rhythmFlow - Math.min(0.05, Math.abs(velocity.current) * 0.005);
+        if (velocity.current > -2.2) {
           velocity.current += gallopBounce;
         }
       }
@@ -1485,9 +1322,7 @@ export default function GameScreen() {
       const mp = movementProfileRef.current;
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
-      const cruiseSoften = 1.0 - Math.min(0.08, cruiseMomentum.current * 0.06);
-      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05 * cruiseSoften;
-      cruiseMomentum.current = Math.min(0.8, cruiseMomentum.current + 0.06);
+      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
@@ -1643,17 +1478,6 @@ export default function GameScreen() {
     rollbackTimer.current = 0;
     rollbackIntensity.current = 0;
     rollbackDirection.current = 0;
-    hardZoneActive.current = false;
-    hardZoneIntensity.current = 0;
-    hardZonePopupTimer.current = 0;
-    lastHardZonePopupScore.current = 0;
-    setShowHardZonePopup(false);
-    hardZonePopupAnim.setValue(0);
-    hardZonePopupScale.setValue(0.5);
-    cruiseBobPhase.current = 0;
-    cruiseMomentum.current = 0;
-    glideTimer.current = 0;
-    glideIntensity.current = 0;
     lastTapTime.current = 0;
     tapInterval.current = 0;
     rapidTapCount.current = 0;
@@ -2067,24 +1891,6 @@ export default function GameScreen() {
                   <View style={[styles.levelUpGlow, { backgroundColor: currentLevel.color + '15' }]} />
                   <Text style={[styles.levelUpTitle, { color: currentLevel.color }]}>LEVEL {currentLevel.level}</Text>
                   <Text style={styles.levelUpName}>{currentLevel.name}</Text>
-                </View>
-              </Animated.View>
-            )}
-
-            {showHardZonePopup && (
-              <Animated.View
-                style={[
-                  styles.levelUpOverlay,
-                  {
-                    opacity: hardZonePopupAnim,
-                    transform: [{ scale: hardZonePopupScale }],
-                    top: safeTop + verticalScale(50),
-                  },
-                ]}
-                pointerEvents="none"
-              >
-                <View style={[styles.hardZoneBadge, { borderColor: currentLevel.color + '80', shadowColor: currentLevel.color }]}>
-                  <Text style={[styles.hardZoneBadgeText, { color: currentLevel.color }]}>TIGHT SQUEEZE!</Text>
                 </View>
               </Animated.View>
             )}
