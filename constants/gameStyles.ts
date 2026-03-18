@@ -805,8 +805,6 @@ export const gameStyles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#A08040',
   },
-});
-
   effectPickup: {
     position: 'absolute',
     alignItems: 'center',
