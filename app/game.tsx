@@ -581,45 +581,55 @@ export default function GameScreen() {
     const lvl = levelRef.current;
     const mp = movementProfileRef.current;
 
-    cruiseBobPhase.current += 0.038;
-    const cruiseBob = Math.sin(cruiseBobPhase.current) * 0.4 + Math.sin(cruiseBobPhase.current * 1.7) * 0.15;
-    cruiseMomentum.current *= 0.978;
+    cruiseBobPhase.current += 0.034;
+    const cruiseBob = Math.sin(cruiseBobPhase.current) * 0.5 + Math.sin(cruiseBobPhase.current * 1.7) * 0.2;
+    cruiseMomentum.current *= 0.982;
     if (Math.abs(cruiseMomentum.current) < 0.001) cruiseMomentum.current = 0;
 
     const currentSpeedFactor = speedMultiplier.current;
     const speedT = Math.min(1, (currentSpeedFactor - 1) / 3.0);
 
-    const gravSoften = 1.0 - speedT * 0.08;
-    const gravBase = lvl.fastGravity * mp.gravityMultiplier * 0.92 * gravSoften;
+    const gravSoften = 1.0 - speedT * 0.10;
+    const gravBase = lvl.fastGravity * mp.gravityMultiplier * 0.88 * gravSoften;
     const velMag = Math.abs(velocity.current);
-    const gravScale = 0.90 + 0.10 * Math.min(1, velMag / 5.5);
-    velocity.current += gravBase * gravScale;
-    velocity.current += cruiseBob * 0.018;
-    velocity.current += cruiseMomentum.current * 0.04;
+    const gravScale = 0.86 + 0.14 * Math.min(1, velMag / 6.0);
+    const gravSmooth = gravBase * gravScale;
+    const prevVel = velocity.current;
+    velocity.current += gravSmooth;
+    velocity.current += cruiseBob * 0.022;
+    velocity.current += cruiseMomentum.current * 0.05;
     velocity.current *= mp.fallDamping;
+    const velLerp = 0.82;
+    velocity.current = prevVel + (velocity.current - prevVel) * velLerp;
 
     if (glideTimer.current > 0) {
       glideTimer.current--;
       const glideStr = glideIntensity.current;
-      const glideProgress = 1 - (glideTimer.current / (18 + Math.min(1, rhythmStreak.current / 10) * 14 + speedT * 8));
-      const glideCurve = glideProgress < 0.3 ? glideProgress / 0.3 : 1.0 - (glideProgress - 0.3) * 0.4;
-      const glideDamping = 0.92 - speedT * 0.07;
+      const glideTotalDur = 26 + Math.min(1, rhythmStreak.current / 10) * 18 + speedT * 10;
+      const glideProgress = 1 - (glideTimer.current / glideTotalDur);
+      const glideCurve = glideProgress < 0.25 ? glideProgress / 0.25 : 1.0 - (glideProgress - 0.25) * 0.32;
+      const glideDamping = 0.90 - speedT * 0.06;
       velocity.current *= (glideDamping + (1 - glideDamping) * (1 - glideStr * glideCurve));
-      const glideSmooth = glideStr * glideCurve * 0.022 * (1 + speedT * 0.6);
-      if (velocity.current > 0.4) velocity.current -= glideSmooth;
-      if (velocity.current < -0.4) velocity.current += glideSmooth * 0.5;
-      const glideSpeedPush = glideStr * glideCurve * 0.018 * (1 + speedT * 0.3);
-      poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + glideSpeedPush * 0.008);
+      const glideSmooth = glideStr * glideCurve * 0.032 * (1 + speedT * 0.7);
+      if (velocity.current > 0.3) velocity.current -= glideSmooth;
+      if (velocity.current < -0.3) velocity.current += glideSmooth * 0.6;
+      const glideCenter = glideStr * glideCurve * 0.008;
+      if (Math.abs(velocity.current) > 0.5) {
+        velocity.current *= (1.0 - glideCenter);
+      }
+      const glideSpeedPush = glideStr * glideCurve * 0.022 * (1 + speedT * 0.35);
+      poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + glideSpeedPush * 0.01);
     }
 
     const maxFallVel = GAME_CONFIG.MAX_FALL_VELOCITY - speedT * 0.6;
     if (velocity.current > maxFallVel) {
-      velocity.current = maxFallVel;
+      velocity.current = velocity.current + (maxFallVel - velocity.current) * 0.35;
     }
 
-    const moveSmooth = 1.0 - Math.min(0.18, velMag * 0.007);
-    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.14 + speedT * 0.04) : 1.0;
-    characterY.current += velocity.current * moveSmooth * riseBoost;
+    const moveSmooth = 1.0 - Math.min(0.20, velMag * 0.008);
+    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.16 + speedT * 0.05) : 1.0;
+    const glideMoveDampen = glideTimer.current > 0 ? (0.94 + 0.06 * (1 - glideIntensity.current * 0.5)) : 1.0;
+    characterY.current += velocity.current * moveSmooth * riseBoost * glideMoveDampen;
 
     const minY = safeTop + 2;
     const maxY = SCREEN_HEIGHT - GROUND_HEIGHT - 2;
@@ -983,10 +993,10 @@ export default function GameScreen() {
         polePulseTimer.current = 28;
         polePulseIntensity.current = Math.min(1.5, 0.6 + consecutiveClears.current * 0.12 + streakFactor * 0.3);
 
-        const glideStrength = 0.5 + streakFactor * 0.4 + cadenceQuality * 0.3;
-        glideTimer.current = Math.round(24 + streakFactor * 14 + speedT * 8);
+        const glideStrength = 0.6 + streakFactor * 0.45 + cadenceQuality * 0.35;
+        glideTimer.current = Math.round(32 + streakFactor * 18 + speedT * 10);
         glideIntensity.current = Math.min(1.0, glideStrength);
-        cruiseMomentum.current = Math.min(0.8, cruiseMomentum.current + 0.15 + streakFactor * 0.1);
+        cruiseMomentum.current = Math.min(0.9, cruiseMomentum.current + 0.18 + streakFactor * 0.12);
 
         const charCenterY = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
         const halfGap = o.gapSize / 2;
@@ -1390,9 +1400,11 @@ export default function GameScreen() {
       const mp = movementProfileRef.current;
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
-      const cruiseSoften = 1.0 - Math.min(0.08, cruiseMomentum.current * 0.06);
-      velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05 * cruiseSoften;
-      cruiseMomentum.current = Math.min(0.8, cruiseMomentum.current + 0.06);
+      const cruiseSoften = 1.0 - Math.min(0.10, cruiseMomentum.current * 0.07);
+      const targetVel = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05 * cruiseSoften;
+      const tapBlend = velocity.current > 1.0 ? 0.88 : 0.92;
+      velocity.current = velocity.current + (targetVel - velocity.current) * tapBlend;
+      cruiseMomentum.current = Math.min(0.9, cruiseMomentum.current + 0.08);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
