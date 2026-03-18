@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
-import { Trophy, Ruler, Award, Play, ChevronRight, TreePine } from 'lucide-react-native';
+import { Trophy, Ruler, Star, Play, ChevronRight, TreePine } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GameColors } from '@/constants/colors';
 import { useGameState, useFormattedDistance } from '@/providers/GameStateProvider';
@@ -382,7 +382,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.statCard}>
                 <View style={styles.cardIconWrap}>
-                  <Award size={moderateScale(24)} color="#D4920B" />
+                  <Star size={moderateScale(24)} color="#D4920B" fill="#FFD84A" />
                 </View>
                 <Text style={styles.cardValue}>{badgeCount}</Text>
                 <View style={styles.cardLabelBar}>
