@@ -587,24 +587,30 @@ export default function GameScreen() {
     const speedT = Math.min(1, (currentSpeedFactor - 1) / 3.0);
 
     const gravSoften = 1.0 - speedT * 0.08;
-    const gravBase = lvl.fastGravity * mp.gravityMultiplier * 0.92 * gravSoften;
     const velMag = Math.abs(velocity.current);
     const gravScale = 0.90 + 0.10 * Math.min(1, velMag / 5.5);
+
+    const isGliding = glideTimer.current > 0;
+    const glideGravityReduction = isGliding ? (0.55 + glideIntensity.current * 0.25) : 1.0;
+    const gravBase = lvl.fastGravity * mp.gravityMultiplier * 0.92 * gravSoften * glideGravityReduction;
     velocity.current += gravBase * gravScale;
     velocity.current += cruiseBob * 0.018;
     velocity.current += cruiseMomentum.current * 0.04;
     velocity.current *= mp.fallDamping;
 
-    if (glideTimer.current > 0) {
+    if (isGliding) {
       glideTimer.current--;
       const glideStr = glideIntensity.current;
-      const glideProgress = 1 - (glideTimer.current / (18 + Math.min(1, rhythmStreak.current / 10) * 14 + speedT * 8));
-      const glideCurve = glideProgress < 0.3 ? glideProgress / 0.3 : 1.0 - (glideProgress - 0.3) * 0.4;
-      const glideDamping = 0.92 - speedT * 0.07;
+      const glideDur = 18 + Math.min(1, rhythmStreak.current / 10) * 14 + speedT * 8;
+      const glideProgress = 1 - (glideTimer.current / glideDur);
+      const glideCurve = glideProgress < 0.3 ? glideProgress / 0.3 : 1.0 - (glideProgress - 0.3) * 0.3;
+      const glideDamping = 0.88 - speedT * 0.07;
       velocity.current *= (glideDamping + (1 - glideDamping) * (1 - glideStr * glideCurve));
-      const glideSmooth = glideStr * glideCurve * 0.022 * (1 + speedT * 0.6);
-      if (velocity.current > 0.4) velocity.current -= glideSmooth;
-      if (velocity.current < -0.4) velocity.current += glideSmooth * 0.5;
+      const glideSmooth = glideStr * glideCurve * 0.045 * (1 + speedT * 0.6);
+      if (velocity.current > 0.3) velocity.current -= glideSmooth;
+      if (velocity.current < -0.3) velocity.current += glideSmooth * 0.4;
+      const glideLift = glideStr * glideCurve * 0.018;
+      if (velocity.current > 1.2) velocity.current -= glideLift;
       const glideSpeedPush = glideStr * glideCurve * 0.018 * (1 + speedT * 0.3);
       poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + glideSpeedPush * 0.008);
     }
