@@ -606,10 +606,32 @@ export default function GameScreen() {
       const glideCurve = glideProgress < 0.3 ? glideProgress / 0.3 : 1.0 - (glideProgress - 0.3) * 0.3;
       const glideDamping = 0.88 - speedT * 0.07;
       velocity.current *= (glideDamping + (1 - glideDamping) * (1 - glideStr * glideCurve));
-      const glideSmooth = glideStr * glideCurve * 0.045 * (1 + speedT * 0.6);
+
+      const charCenterYGlide = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+      const cxGlide = getCharX();
+      let nextGapY = charCenterYGlide;
+      let foundNext = false;
+      const glideObs = obstacles.current;
+      for (let gi = 0; gi < glideObs.length; gi++) {
+        const go = glideObs[gi];
+        if (!go.passed && go.x > cxGlide) {
+          nextGapY = go.gapY;
+          foundNext = true;
+          break;
+        }
+      }
+
+      if (foundNext) {
+        const gapDiff = nextGapY - charCenterYGlide;
+        const glideSteerStrength = glideStr * glideCurve * 0.065 * (1 + speedT * 0.3);
+        const steerForce = Math.sign(gapDiff) * Math.min(Math.abs(gapDiff) * 0.008, 0.35) * glideSteerStrength;
+        velocity.current += steerForce;
+      }
+
+      const glideSmooth = glideStr * glideCurve * 0.035 * (1 + speedT * 0.6);
       if (velocity.current > 0.3) velocity.current -= glideSmooth;
-      if (velocity.current < -0.3) velocity.current += glideSmooth * 0.4;
-      const glideLift = glideStr * glideCurve * 0.018;
+      if (velocity.current < -0.3) velocity.current += glideSmooth * 0.3;
+      const glideLift = glideStr * glideCurve * 0.012;
       if (velocity.current > 1.2) velocity.current -= glideLift;
       const glideSpeedPush = glideStr * glideCurve * 0.018 * (1 + speedT * 0.3);
       poleSpeedBoost.current = Math.min(GAME_CONFIG.MAX_POLE_SPEED_BONUS, poleSpeedBoost.current + glideSpeedPush * 0.008);
