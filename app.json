@@ -18,7 +18,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.kui3neecngk955e59b1og",
+      "bundleIdentifier": "app.rork.bounce-run",
       "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
