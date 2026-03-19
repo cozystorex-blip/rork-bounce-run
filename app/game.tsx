@@ -212,6 +212,17 @@ export default function GameScreen() {
   const inGapAssistActive = useRef(false);
   const inGapAssistIntensity = useRef(0);
 
+  const apexFloatTimer = useRef(0);
+  const wasRising = useRef(false);
+  const tapRhythmQuality = useRef(0);
+  const lastTapIntervals = useRef<number[]>([]);
+  const wakeDriftTimer = useRef(0);
+  const wakeDriftIntensity = useRef(0);
+  const approachLeanVel = useRef(0);
+  const momentumChain = useRef(0);
+  const swoopRecoveryTimer = useRef(0);
+  const swoopRecoveryDir = useRef(0);
+
   const lastTapTime = useRef(0);
   const tapInterval = useRef(0);
   const rapidTapCount = useRef(0);
@@ -668,6 +679,30 @@ export default function GameScreen() {
       postTapGlideTimer.current--;
     }
 
+    const prevVel = velocity.current;
+    const isAtApex = wasRising.current && prevVel > -GAME_CONFIG.APEX_FLOAT_THRESHOLD;
+    if (isAtApex && apexFloatTimer.current <= 0) {
+      apexFloatTimer.current = GAME_CONFIG.APEX_FLOAT_DURATION;
+    }
+    wasRising.current = velocity.current < -0.3;
+    if (apexFloatTimer.current > 0) {
+      apexFloatTimer.current--;
+    }
+
+    momentumChain.current *= GAME_CONFIG.MOMENTUM_CHAIN_DECAY;
+    if (momentumChain.current < 0.005) momentumChain.current = 0;
+
+    tapRhythmQuality.current *= GAME_CONFIG.TAP_RHYTHM_DECAY;
+    if (tapRhythmQuality.current < 0.005) tapRhythmQuality.current = 0;
+
+    if (wakeDriftTimer.current > 0) {
+      wakeDriftTimer.current--;
+    }
+
+    if (swoopRecoveryTimer.current > 0) {
+      swoopRecoveryTimer.current--;
+    }
+
     inGapAssistActive.current = false;
     inGapAssistIntensity.current = 0;
     const charCenterForGap = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
@@ -705,8 +740,54 @@ export default function GameScreen() {
     const airflowGravDampen = airflowTimer.current > 0 ? (0.84 - airflowIntensity.current * 0.08) : 1.0;
     const cruiseGravSoften = GAME_CONFIG.CRUISE_GRAVITY_SOFTEN + cruiseMomentum.current * 0.35;
     const postTapGlide = postTapGlideTimer.current > 0 ? GAME_CONFIG.CRUISE_POST_TAP_GLIDE : 1.0;
-    velocity.current += gravBase * gravScale * airflowGravDampen * inGapGravDampen * cruiseGravSoften * postTapGlide;
+
+    const apexFloatMult = apexFloatTimer.current > 0 ? GAME_CONFIG.APEX_FLOAT_GRAVITY_MULT : 1.0;
+    const chainGravEase = 1.0 - momentumChain.current * GAME_CONFIG.MOMENTUM_CHAIN_GRAVITY_EASE;
+    const rhythmSmooth = 1.0 - tapRhythmQuality.current * GAME_CONFIG.TAP_RHYTHM_SMOOTH_BONUS * 0.3;
+
+    velocity.current += gravBase * gravScale * airflowGravDampen * inGapGravDampen * cruiseGravSoften * postTapGlide * apexFloatMult * chainGravEase * rhythmSmooth;
     velocity.current += cruiseBobVel.current * 0.18 + cruiseDrift.current;
+
+    if (velocity.current < -0.5 && momentumChain.current > 0.1) {
+      velocity.current *= (1.0 + momentumChain.current * GAME_CONFIG.MOMENTUM_CHAIN_RISE_BOOST);
+    }
+
+    if (tapRhythmQuality.current > 0.3) {
+      velocity.current *= GAME_CONFIG.TAP_RHYTHM_VELOCITY_SMOOTH + (1 - GAME_CONFIG.TAP_RHYTHM_VELOCITY_SMOOTH) * (1 - tapRhythmQuality.current * 0.5);
+    }
+
+    if (wakeDriftTimer.current > 0) {
+      const wakeT = wakeDriftTimer.current / GAME_CONFIG.WAKE_DRIFT_DURATION;
+      const wakeEase = wakeT * wakeT * (3 - 2 * wakeT);
+      const wakeLift = -wakeEase * GAME_CONFIG.WAKE_DRIFT_LIFT * wakeDriftIntensity.current;
+      velocity.current += wakeLift;
+    }
+
+    if (swoopRecoveryTimer.current > 0) {
+      const swoopT = swoopRecoveryTimer.current / GAME_CONFIG.SWOOP_RECOVERY_DURATION;
+      const swoopEase = swoopT * (2 - swoopT);
+      velocity.current += swoopRecoveryDir.current * GAME_CONFIG.SWOOP_RECOVERY_FORCE * swoopEase;
+    }
+
+    approachLeanVel.current *= GAME_CONFIG.APPROACH_LEAN_DAMPEN;
+    const charCenterApproach = characterY.current + GAME_CONFIG.CHARACTER_SIZE / 2;
+    const approachCx = getCharX();
+    for (let ai = 0; ai < obstacles.current.length; ai++) {
+      const ao = obstacles.current[ai];
+      if (ao.passed) continue;
+      const approachDist = ao.x - approachCx;
+      const approachRange = POLE_CAP_W * GAME_CONFIG.APPROACH_LEAN_RANGE;
+      if (approachDist > POLE_CAP_W * 0.5 && approachDist < approachRange) {
+        const approachT = 1 - (approachDist - POLE_CAP_W * 0.5) / (approachRange - POLE_CAP_W * 0.5);
+        const approachEase = approachT * approachT;
+        const gapDelta = ao.gapY - charCenterApproach;
+        const leanForce = gapDelta * GAME_CONFIG.APPROACH_LEAN_FORCE * approachEase * 0.01;
+        approachLeanVel.current += leanForce;
+        break;
+      }
+    }
+    velocity.current += approachLeanVel.current;
+
     velocity.current *= mp.fallDamping * 0.995;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
@@ -722,6 +803,21 @@ export default function GameScreen() {
 
     const minY = safeTop + 2;
     const maxY = SCREEN_HEIGHT - GROUND_HEIGHT - 2;
+    const softMinY = minY + GAME_CONFIG.SOFT_BOUNDARY_RANGE;
+    const softMaxY = maxY - GAME_CONFIG.SOFT_BOUNDARY_RANGE;
+
+    if (characterY.current < softMinY && velocity.current < 0) {
+      const boundaryT = 1 - (characterY.current - minY) / GAME_CONFIG.SOFT_BOUNDARY_RANGE;
+      const boundaryClamp = Math.max(0, Math.min(1, boundaryT));
+      velocity.current *= (1 - boundaryClamp * (1 - GAME_CONFIG.SOFT_BOUNDARY_DAMPEN));
+      velocity.current += GAME_CONFIG.SOFT_BOUNDARY_FORCE * boundaryClamp * boundaryClamp;
+    } else if (characterY.current > softMaxY && velocity.current > 0) {
+      const boundaryT = 1 - (maxY - characterY.current) / GAME_CONFIG.SOFT_BOUNDARY_RANGE;
+      const boundaryClamp = Math.max(0, Math.min(1, boundaryT));
+      velocity.current *= (1 - boundaryClamp * (1 - GAME_CONFIG.SOFT_BOUNDARY_DAMPEN));
+      velocity.current -= GAME_CONFIG.SOFT_BOUNDARY_FORCE * boundaryClamp * boundaryClamp;
+    }
+
     if (characterY.current < minY) {
       characterY.current = minY;
       velocity.current = Math.max(velocity.current, 0.5);
@@ -827,6 +923,35 @@ export default function GameScreen() {
       const elasticBounce = dirChangeSmooth.current * 0.03 * blobby;
       stretchYVal += elasticBounce;
       stretchXVal -= elasticBounce * 0.5;
+    }
+
+    if (apexFloatTimer.current > 0) {
+      const apexT = apexFloatTimer.current / GAME_CONFIG.APEX_FLOAT_DURATION;
+      const apexEase = Math.sin(apexT * Math.PI);
+      stretchXVal *= (1 + apexEase * GAME_CONFIG.APEX_FLOAT_STRETCH_X * blobby);
+      stretchYVal *= (1 - apexEase * GAME_CONFIG.APEX_FLOAT_STRETCH_Y * blobby);
+    }
+
+    if (wakeDriftTimer.current > 0) {
+      const wakeVisT = wakeDriftTimer.current / GAME_CONFIG.WAKE_DRIFT_DURATION;
+      const wakeVisEase = wakeVisT * (2 - wakeVisT);
+      const wakeStreamline = wakeVisEase * GAME_CONFIG.WAKE_DRIFT_STREAMLINE * wakeDriftIntensity.current * blobby;
+      stretchXVal *= (1 - wakeStreamline * 0.6);
+      stretchYVal *= (1 + wakeStreamline * 0.35);
+    }
+
+    if (momentumChain.current > 0.1) {
+      const chainVisual = momentumChain.current * 0.015 * blobby;
+      stretchXVal *= (1 - chainVisual * 0.4);
+      stretchYVal *= (1 + chainVisual * 0.2);
+    }
+
+    if (swoopRecoveryTimer.current > 0) {
+      const swoopT = swoopRecoveryTimer.current / GAME_CONFIG.SWOOP_RECOVERY_DURATION;
+      const swoopEase = Math.sin(swoopT * Math.PI);
+      const swoopVisual = swoopEase * 0.02 * blobby;
+      stretchXVal *= (1 + swoopVisual * 0.5);
+      stretchYVal *= (1 - swoopVisual * 0.3);
     }
 
     if (gallopTimer.current > 0) {
@@ -1102,6 +1227,9 @@ export default function GameScreen() {
         gallopRhythmPhase.current = 0.90;
         postGapRelaxTimer.current = 44;
         consecutiveClears.current++;
+
+        wakeDriftTimer.current = GAME_CONFIG.WAKE_DRIFT_DURATION;
+        wakeDriftIntensity.current = Math.min(1.2, 0.5 + consecutiveClears.current * 0.08 + tapRhythmQuality.current * 0.3);
 
         const speedAirflowExt = Math.max(0, Math.min(1, (speedMultiplier.current - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START) / (GAME_CONFIG.HIGH_SPEED_FORGIVENESS_MAX - GAME_CONFIG.HIGH_SPEED_FORGIVENESS_START)));
         airflowTimer.current = Math.round(GAME_CONFIG.AIRFLOW_DURATION + speedAirflowExt * 10);
@@ -1397,6 +1525,31 @@ export default function GameScreen() {
 
     const wasFalling = velocity.current > 1.5;
     correctionTap.current = wasFalling;
+
+    if (wasFalling && velocity.current > GAME_CONFIG.SWOOP_RECOVERY_THRESHOLD) {
+      swoopRecoveryTimer.current = GAME_CONFIG.SWOOP_RECOVERY_DURATION;
+      swoopRecoveryDir.current = -1;
+    }
+
+    lastTapIntervals.current.push(timeSinceLastTap);
+    if (lastTapIntervals.current.length > 5) lastTapIntervals.current.shift();
+    if (lastTapIntervals.current.length >= 3) {
+      const intervals = lastTapIntervals.current;
+      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      let variance = 0;
+      for (let vi = 0; vi < intervals.length; vi++) {
+        const diff = intervals[vi] - avg;
+        variance += diff * diff;
+      }
+      variance /= intervals.length;
+      const stdDev = Math.sqrt(variance);
+      if (stdDev < GAME_CONFIG.TAP_RHYTHM_WINDOW && avg > 100 && avg < 600) {
+        const rhythmBoost = Math.max(0, 1 - stdDev / GAME_CONFIG.TAP_RHYTHM_WINDOW);
+        tapRhythmQuality.current = Math.min(1, tapRhythmQuality.current + rhythmBoost * 0.25);
+      }
+    }
+
+    momentumChain.current = Math.min(GAME_CONFIG.MOMENTUM_CHAIN_MAX, momentumChain.current + (isRapid ? 0.18 : 0.08));
 
     const normalizedX = (tapX / SCREEN_WIDTH - 0.5) * 2;
     const sideForce = isNeonMap ? 0 : normalizedX * MAX_X_DRIFT * 0.95;
@@ -1726,6 +1879,16 @@ export default function GameScreen() {
     squeezeForgiveTimer.current = 0;
     inGapAssistActive.current = false;
     inGapAssistIntensity.current = 0;
+    apexFloatTimer.current = 0;
+    wasRising.current = false;
+    tapRhythmQuality.current = 0;
+    lastTapIntervals.current = [];
+    wakeDriftTimer.current = 0;
+    wakeDriftIntensity.current = 0;
+    approachLeanVel.current = 0;
+    momentumChain.current = 0;
+    swoopRecoveryTimer.current = 0;
+    swoopRecoveryDir.current = 0;
     airflowTimer.current = 0;
     airflowIntensity.current = 0;
     airflowStreaks.current = [];
