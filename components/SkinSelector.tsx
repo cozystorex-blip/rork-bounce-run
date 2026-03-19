@@ -405,7 +405,7 @@ export default React.memo(function SkinSelector() {
             <Text style={styles.infoText}>
               {stats.unlockedSkins.length}/{SKINS.length} blobs collected
             </Text>
-            <Text style={styles.infoSubtext}>Play as Shady or Bubbles & score 8+ to earn coins!</Text>
+            <Text style={styles.infoSubtext}>Score 8+ in any run to earn coins!</Text>
           </View>
         </View>
       </View>
