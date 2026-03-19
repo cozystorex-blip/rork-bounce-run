@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Pause, Play, Home, RotateCcw, Trophy, Star, Ruler, Volume2, VolumeX, CupSoda, Coins } from 'lucide-react-native';
+import { Pause, Play, Home, RotateCcw, Trophy, Star, Ruler, Volume2, VolumeX, CupSoda, Coins, Anchor, Zap } from 'lucide-react-native';
 import { BoostIcon, DiveIcon, BarrelIcon, SpinIcon, SuperFlapIcon } from '@/components/TrickIcons';
 import { GameColors } from '@/constants/colors';
 import { GAME_CONFIG, BLOCK_COLOR_PAIRS, LEVELS, LevelConfig, OBSTACLE_TUNING, GLIDE_CONFIG, SQUEEZE_CONFIG, PULSE_CONFIG, DECEL_CONFIG, LINEAR_CONFIG, GALLOP_SPEED_CONFIG } from '@/constants/game';
@@ -223,6 +223,11 @@ export default function GameScreen() {
   const needsScoreUpdate = useRef(false);
   const [musicOn, setMusicOn] = useState<boolean>(stats.musicEnabled);
   const shareScaleAnim = useRef(new Animated.Value(1)).current;
+
+  const [cruiseOn, setCruiseOn] = useState<boolean>(false);
+  const cruiseOnRef = useRef(false);
+  const [linearOn, setLinearOn] = useState<boolean>(false);
+  const linearOnRef = useRef(false);
 
   const [activeTrick, setActiveTrickState] = useState<{ type: TrickType; info: TrickInfo } | null>(null);
   const activeTrickRef = useRef<{ type: TrickType; info: TrickInfo } | null>(null);
@@ -570,9 +575,12 @@ export default function GameScreen() {
     const lvl = levelRef.current;
     const mp = movementProfileRef.current;
 
+    const isCruise = cruiseOnRef.current;
+    const isLinear = linearOnRef.current;
+
     glidePhase.current += GLIDE_CONFIG.BOB_FREQUENCY;
-    const glideBob = Math.sin(glidePhase.current) * GLIDE_CONFIG.BOB_AMPLITUDE;
-    const glideSecondary = Math.sin(glidePhase.current * 1.7) * GLIDE_CONFIG.BOB_AMPLITUDE * 0.3;
+    const glideBob = isCruise ? Math.sin(glidePhase.current) * GLIDE_CONFIG.BOB_AMPLITUDE : 0;
+    const glideSecondary = isCruise ? Math.sin(glidePhase.current * 1.7) * GLIDE_CONFIG.BOB_AMPLITUDE * 0.3 : 0;
 
     const gravBase = lvl.fastGravity * mp.gravityMultiplier * (1 - linearDamping.current * 0.12);
     const velMag = Math.abs(velocity.current);
@@ -582,9 +590,13 @@ export default function GameScreen() {
     velocity.current += gravCurve;
     velocity.current *= mp.fallDamping;
 
-    velocity.current += (glideBob + glideSecondary) * 0.08;
-    cruiseMomentum.current *= GLIDE_CONFIG.MOMENTUM_DAMPING;
-    velocity.current += cruiseMomentum.current * 0.02;
+    if (isCruise) {
+      velocity.current += (glideBob + glideSecondary) * 0.08;
+      cruiseMomentum.current *= GLIDE_CONFIG.MOMENTUM_DAMPING;
+      velocity.current += cruiseMomentum.current * 0.02;
+    } else {
+      cruiseMomentum.current = 0;
+    }
 
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
@@ -684,10 +696,10 @@ export default function GameScreen() {
       targetSqueeze = proxCurve * tightness * SQUEEZE_CONFIG.MAX_SQUEEZE_X;
       isInGapZone.current = inGap;
 
-      if (inGap) {
+      if (inGap && isLinear) {
         targetLinear = LINEAR_CONFIG.DAMPING_IN_GAP * (1 + tightness * 0.5);
         targetDecel = DECEL_CONFIG.MAX_SLOW * proxCurve * (0.5 + tightness * 0.5);
-      } else if (nearestPoleDist < POLE_CAP_W * DECEL_CONFIG.APPROACH_RANGE) {
+      } else if (isLinear && nearestPoleDist < POLE_CAP_W * DECEL_CONFIG.APPROACH_RANGE) {
         const decelProx = 1 - nearestPoleDist / (POLE_CAP_W * DECEL_CONFIG.APPROACH_RANGE);
         targetDecel = DECEL_CONFIG.MAX_SLOW * decelProx * 0.6;
       }
@@ -1171,9 +1183,11 @@ export default function GameScreen() {
       const mp = movementProfileRef.current;
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
-      const tapSoftener = isInGapZone.current ? GLIDE_CONFIG.CRUISE_TAP_SOFTENER : 1.0;
+      const tapSoftener = (cruiseOnRef.current && isInGapZone.current) ? GLIDE_CONFIG.CRUISE_TAP_SOFTENER : 1.0;
       velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05 * tapSoftener;
-      cruiseMomentum.current = Math.min(1.5, cruiseMomentum.current + 0.35);
+      if (cruiseOnRef.current) {
+        cruiseMomentum.current = Math.min(1.5, cruiseMomentum.current + 0.35);
+      }
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
@@ -1205,6 +1219,24 @@ export default function GameScreen() {
       void audioManager.resumeMusic();
     }
   }, [setGameStatus]);
+
+  const handleToggleCruise = useCallback(() => {
+    if (gameStatusRef.current !== 'playing') return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const next = !cruiseOnRef.current;
+    cruiseOnRef.current = next;
+    setCruiseOn(next);
+    console.log('[Game] Cruise control:', next ? 'ON' : 'OFF');
+  }, []);
+
+  const handleToggleLinear = useCallback(() => {
+    if (gameStatusRef.current !== 'playing') return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const next = !linearOnRef.current;
+    linearOnRef.current = next;
+    setLinearOn(next);
+    console.log('[Game] Linear mode:', next ? 'ON' : 'OFF');
+  }, []);
 
   const handleMusicToggle = useCallback(async () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1255,6 +1287,10 @@ export default function GameScreen() {
     polePulseActive.current = false;
     decelFactor.current = 0;
     linearDamping.current = 0;
+    cruiseOnRef.current = false;
+    setCruiseOn(false);
+    linearOnRef.current = false;
+    setLinearOn(false);
     poleSpeedBoost.current = 0;
     gallopMomentum.current = 0;
     rhythmStreak.current = 0;
@@ -1756,6 +1792,43 @@ export default function GameScreen() {
             </View>
           </View>
         </View>
+
+        {(gameStatus === 'playing' || gameStatus === 'ready') && !isNeonMap && (
+          <View style={[styles.modeToggleRow, { bottom: GROUND_HEIGHT + safeBottom + verticalScale(8) }]} pointerEvents="box-none">
+            <TouchableOpacity
+              style={[
+                styles.modeToggleBtn,
+                cruiseOn && styles.modeToggleBtnActive,
+                cruiseOn && { borderColor: '#00D4FF', backgroundColor: 'rgba(0,212,255,0.18)' },
+              ]}
+              onPress={handleToggleCruise}
+              activeOpacity={0.7}
+              testID="cruise-toggle"
+            >
+              <Anchor size={moderateScale(15)} color={cruiseOn ? '#00D4FF' : 'rgba(255,255,255,0.45)'} />
+              <Text style={[
+                styles.modeToggleText,
+                cruiseOn && { color: '#00D4FF' },
+              ]}>CRUISE</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.modeToggleBtn,
+                linearOn && styles.modeToggleBtnActive,
+                linearOn && { borderColor: '#FFB800', backgroundColor: 'rgba(255,184,0,0.18)' },
+              ]}
+              onPress={handleToggleLinear}
+              activeOpacity={0.7}
+              testID="linear-toggle"
+            >
+              <Zap size={moderateScale(15)} color={linearOn ? '#FFB800' : 'rgba(255,255,255,0.45)'} />
+              <Text style={[
+                styles.modeToggleText,
+                linearOn && { color: '#FFB800' },
+              ]}>LINEAR</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {gameStatus === 'paused' && (
           <View style={styles.pauseOverlay}>
