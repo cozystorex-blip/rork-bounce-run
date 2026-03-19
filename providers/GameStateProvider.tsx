@@ -25,7 +25,7 @@ const DEFAULT_STATS: GameStats = {
   totalRuns: 0,
   unlockedBadges: [],
   selectedSkin: 'hero',
-  unlockedSkins: ['hero'],
+  unlockedSkins: ['hero', 'shadow', 'tech'],
   musicEnabled: true,
   sfxEnabled: true,
   selectedMap: 'park',
@@ -111,9 +111,10 @@ export const [GameStateProvider, useGameState] = createContextHook(() => {
         newUnlockedSkins.push(skin.id);
       }
     }
+    const isCoinEligible = stats.selectedSkin === 'shadow' || stats.selectedSkin === 'aqua';
     const MIN_SCORE_FOR_COINS = 8;
     let coinsEarned = 0;
-    if (score >= MIN_SCORE_FOR_COINS) {
+    if (isCoinEligible && score >= MIN_SCORE_FOR_COINS) {
       const baseCoins = Math.floor((score - MIN_SCORE_FOR_COINS) * 0.6);
       let levelBonus = 0;
       if (score >= 16) levelBonus += 2;

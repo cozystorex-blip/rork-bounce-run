@@ -805,40 +805,6 @@ export const gameStyles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#A08040',
   },
-  modeToggleRow: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: scale(10),
-    zIndex: 90,
-  },
-  modeToggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale(5),
-    backgroundColor: 'rgba(8,8,20,0.55)',
-    paddingHorizontal: scale(14),
-    paddingVertical: verticalScale(8),
-    borderRadius: scale(18),
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  modeToggleBtnActive: {
-    borderWidth: 2,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  modeToggleText: {
-    fontSize: moderateScale(10),
-    fontWeight: '800' as const,
-    color: 'rgba(255,255,255,0.45)',
-    letterSpacing: 1.5,
-  },
 });
 
 export const trickIconStyles = StyleSheet.create({
