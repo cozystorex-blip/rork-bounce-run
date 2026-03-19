@@ -805,8 +805,6 @@ export const gameStyles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#A08040',
   },
-});
-
   modeToggleRow: {
     position: 'absolute',
     left: 0,
