@@ -213,6 +213,17 @@ export default function GameScreen() {
   const sustainedFallFrames = useRef(0);
   const correctionTap = useRef(false);
 
+  const jellyPhase = useRef(0);
+  const jellyIntensity = useRef(0);
+  const windDeformFactor = useRef(0);
+  const microOscPhase = useRef(0);
+  const linearVelSmooth = useRef(0);
+  const impactCompress = useRef(0);
+  const glideBoost = useRef(0);
+  const breathPhase = useRef(0);
+  const prevVelForLinear = useRef(0);
+  const motionSmearIntensity = useRef(0);
+
   const charAnim = useRef(new Animated.Value(SCREEN_HEIGHT / 2)).current;
   const charXAnim = useRef(new Animated.Value(0)).current;
   const charRotation = useRef(new Animated.Value(0)).current;
@@ -615,17 +626,28 @@ export default function GameScreen() {
     cruiseBobVel.current = cruiseBobVel.current * 0.92 + bobWave * 0.08;
 
     const airflowGravDampen = airflowTimer.current > 0 ? 0.88 : 1.0;
-    velocity.current += gravBase * gravScale * airflowGravDampen;
+    const glideGravDampen = glideBoost.current > 0.1 ? (1.0 - glideBoost.current * 0.06) : 1.0;
+    velocity.current += gravBase * gravScale * airflowGravDampen * glideGravDampen;
     velocity.current += cruiseBobVel.current * 0.15;
     velocity.current *= mp.fallDamping * 0.997;
     if (velocity.current > GAME_CONFIG.MAX_FALL_VELOCITY) {
       velocity.current = GAME_CONFIG.MAX_FALL_VELOCITY;
     }
 
+    const velDelta = velocity.current - prevVelForLinear.current;
+    const linearLerp = Math.abs(velDelta) > 2.5 ? 0.35 : 0.55;
+    linearVelSmooth.current = linearVelSmooth.current + (velocity.current - linearVelSmooth.current) * linearLerp;
+    prevVelForLinear.current = velocity.current;
+    const smoothedVel = linearVelSmooth.current * 0.6 + velocity.current * 0.4;
+
     const moveSmooth = 1.0 - Math.min(0.20, velMag * 0.010);
-    const riseBoost = velocity.current < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) : 1.0;
-    const fallSoften = velocity.current > 2.0 ? 0.97 : 1.0;
-    characterY.current += velocity.current * moveSmooth * riseBoost * fallSoften;
+    const riseBoost = smoothedVel < 0 ? (1.0 + (1.0 - mp.riseSmoothing) * 0.12) : 1.0;
+    const fallSoften = smoothedVel > 2.0 ? 0.97 : 1.0;
+    const glideSmooth = glideBoost.current > 0 ? (1.0 + glideBoost.current * 0.04) : 1.0;
+    characterY.current += smoothedVel * moveSmooth * riseBoost * fallSoften * glideSmooth;
+
+    glideBoost.current *= 0.97;
+    if (glideBoost.current < 0.01) glideBoost.current = 0;
 
     const minY = safeTop + 2;
     const maxY = SCREEN_HEIGHT - GROUND_HEIGHT - 2;
@@ -804,6 +826,51 @@ export default function GameScreen() {
       stretchYVal *= (1 + rhythmWave * 0.004);
       stretchXVal *= (1 - rhythmWave * 0.002);
     }
+
+    jellyPhase.current += 0.18;
+    jellyIntensity.current *= 0.94;
+    if (jellyIntensity.current < 0.005) jellyIntensity.current = 0;
+    if (jellyIntensity.current > 0) {
+      const jellyWaveX = Math.sin(jellyPhase.current * 2.3) * jellyIntensity.current;
+      const jellyWaveY = Math.cos(jellyPhase.current * 1.8) * jellyIntensity.current;
+      stretchXVal *= (1 + jellyWaveX * 0.025 * blobby);
+      stretchYVal *= (1 + jellyWaveY * 0.02 * blobby);
+    }
+
+    const totalSpeed = currentObstacleSpeed.current * speedMultiplier.current;
+    const speedNorm = Math.min(1, totalSpeed / (GAME_CONFIG.OBSTACLE_SPEED * 3));
+    const targetWind = speedNorm * 0.035 * blobby;
+    windDeformFactor.current += (targetWind - windDeformFactor.current) * 0.08;
+    if (windDeformFactor.current > 0.003) {
+      stretchXVal *= (1 + windDeformFactor.current);
+      stretchYVal *= (1 - windDeformFactor.current * 0.45);
+    }
+
+    microOscPhase.current += 0.12 + speedNorm * 0.06;
+    const microAmp = 0.004 * (1 + speedNorm * 0.5) * blobby;
+    const microX = Math.sin(microOscPhase.current) * microAmp;
+    const microY = Math.cos(microOscPhase.current * 0.7) * microAmp * 0.7;
+    stretchXVal *= (1 + microX);
+    stretchYVal *= (1 + microY);
+
+    if (Math.abs(vel) < 0.8) {
+      breathPhase.current += 0.035;
+      const breathAmt = Math.sin(breathPhase.current) * 0.008 * blobby;
+      stretchXVal *= (1 + breathAmt);
+      stretchYVal *= (1 - breathAmt * 0.6);
+    } else {
+      breathPhase.current *= 0.9;
+    }
+
+    if (impactCompress.current > 0) {
+      impactCompress.current *= 0.88;
+      if (impactCompress.current < 0.005) impactCompress.current = 0;
+      const compressWave = Math.sin(impactCompress.current * Math.PI * 2.5);
+      stretchXVal *= (1 + compressWave * 0.03 * blobby);
+      stretchYVal *= (1 - compressWave * 0.025 * blobby);
+    }
+
+    motionSmearIntensity.current = Math.min(1, Math.abs(vel) / 5) * 0.6 + speedNorm * 0.4;
 
     if (rollbackTimer.current > 0) {
       rollbackTimer.current--;
@@ -1030,6 +1097,9 @@ export default function GameScreen() {
         if (velocity.current > -2.2) {
           velocity.current += gallopBounce;
         }
+
+        glideBoost.current = Math.min(1.5, glideBoost.current + 0.25 + streakFactor * 0.12);
+        jellyIntensity.current = Math.min(1.2, jellyIntensity.current + 0.35 + streakFactor * 0.15);
       }
     }
 
@@ -1271,6 +1341,9 @@ export default function GameScreen() {
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
       const mp = movementProfileRef.current;
       velocity.current = levelRef.current.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+      jellyIntensity.current = 0.5;
+      impactCompress.current = 0.4;
+      glideBoost.current = 0.2;
       charAnim.setValue(characterY.current);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
@@ -1355,6 +1428,9 @@ export default function GameScreen() {
         }
 
         velocity.current = jumpForce;
+        jellyIntensity.current = Math.min(1.5, jellyIntensity.current + 0.4);
+        impactCompress.current = Math.min(1.0, 0.3 + Math.abs(jumpForce) * 0.04);
+        glideBoost.current = Math.min(1.2, glideBoost.current + 0.15);
 
         if (xForce !== 0) {
           const newX = Math.max(
@@ -1414,6 +1490,12 @@ export default function GameScreen() {
       tapSideForce.current = sideForce;
       tapSpeedBonus.current = Math.min(GAME_CONFIG.MAX_TAP_SPEED_BONUS, tapSpeedBonus.current + GAME_CONFIG.TAP_SPEED_BOOST);
       velocity.current = lvl.fastJump * jumpMod * mp.flapForceMultiplier * 1.05;
+
+      const velChange = Math.abs(velocity.current - prevVelForLinear.current);
+      impactCompress.current = Math.min(1.2, velChange * 0.08);
+      jellyIntensity.current = Math.min(1.5, jellyIntensity.current + 0.2 + velChange * 0.03);
+      glideBoost.current = Math.min(1.0, glideBoost.current + 0.12);
+
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       charStretchX.stopAnimation();
       charStretchY.stopAnimation();
@@ -1586,6 +1668,16 @@ export default function GameScreen() {
     gapPatternIndex.current = 0;
     lastGapZone.current = 'mid';
     airflowOpacity.setValue(0);
+    jellyPhase.current = 0;
+    jellyIntensity.current = 0;
+    windDeformFactor.current = 0;
+    microOscPhase.current = 0;
+    linearVelSmooth.current = 0;
+    impactCompress.current = 0;
+    glideBoost.current = 0;
+    breathPhase.current = 0;
+    prevVelForLinear.current = 0;
+    motionSmearIntensity.current = 0;
     levelRef.current = LEVELS[0];
     setCurrentLevel(LEVELS[0]);
     setShowLevelUp(false);
