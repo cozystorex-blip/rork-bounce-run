@@ -139,6 +139,114 @@ function generateCloud(id: number, startX?: number): CloudData {
   };
 }
 
+const SickEffects = React.memo(function SickEffects({
+  charY, charXBase, charXDrift, charSize, intensity, phase,
+}: {
+  charY: Animated.Value;
+  charXBase: number;
+  charXDrift: Animated.Value;
+  charSize: number;
+  intensity: number;
+  phase: number;
+}) {
+  const halfSize = charSize / 2;
+  const clampedInt = Math.min(1, intensity);
+  const particles: React.ReactNode[] = [];
+
+  const sweatCount = clampedInt > 0.4 ? 3 : clampedInt > 0.25 ? 2 : 1;
+  for (let i = 0; i < sweatCount; i++) {
+    const angle = (phase * 1.2 + i * 2.1) % (Math.PI * 2);
+    const radius = halfSize * (0.9 + clampedInt * 0.4);
+    const dx = Math.cos(angle) * radius;
+    const dy = Math.sin(angle) * radius * 0.7 - halfSize * 0.3;
+    const dropOpacity = (0.3 + clampedInt * 0.5) * (0.5 + 0.5 * Math.sin(phase * 2 + i));
+    const dropSize = scale(3 + clampedInt * 3);
+    particles.push(
+      <Animated.View
+        key={`sweat-${i}`}
+        pointerEvents="none"
+        style={{
+          position: 'absolute' as const,
+          left: charXBase + dx - dropSize / 2,
+          width: dropSize,
+          height: dropSize * 1.4,
+          borderRadius: dropSize,
+          backgroundColor: `rgba(140,255,140,${dropOpacity.toFixed(2)})`,
+          transform: [
+            { translateX: charXDrift },
+            { translateY: Animated.add(charY, dy) },
+          ],
+        }}
+      />
+    );
+  }
+
+  if (clampedInt > 0.35) {
+    const starCount = clampedInt > 0.7 ? 4 : 3;
+    for (let i = 0; i < starCount; i++) {
+      const starAngle = (phase * 0.8 + i * (Math.PI * 2 / starCount)) % (Math.PI * 2);
+      const starRadius = halfSize * (0.7 + clampedInt * 0.5);
+      const sx = Math.cos(starAngle) * starRadius;
+      const sy = Math.sin(starAngle) * starRadius * 0.5 - halfSize * 0.7;
+      const starOp = (0.25 + clampedInt * 0.45) * (0.6 + 0.4 * Math.cos(phase * 3 + i * 1.5));
+      const starSize = scale(4 + clampedInt * 2);
+      const starColor = i % 2 === 0 ? `rgba(255,255,100,${starOp.toFixed(2)})` : `rgba(160,255,160,${starOp.toFixed(2)})`;
+      particles.push(
+        <Animated.View
+          key={`star-${i}`}
+          pointerEvents="none"
+          style={{
+            position: 'absolute' as const,
+            left: charXBase + sx - starSize / 2,
+            width: starSize,
+            height: starSize,
+            borderRadius: starSize / 2,
+            backgroundColor: starColor,
+            transform: [
+              { translateX: charXDrift },
+              { translateY: Animated.add(charY, sy) },
+              { rotate: `${((phase * 60 + i * 45) % 360).toFixed(0)}deg` },
+            ],
+          }}
+        />
+      );
+    }
+  }
+
+  if (clampedInt > 0.5) {
+    const bubbleCount = clampedInt > 0.8 ? 3 : 2;
+    for (let i = 0; i < bubbleCount; i++) {
+      const bPhase = (phase * 0.5 + i * 1.8) % (Math.PI * 2);
+      const bx = Math.sin(bPhase * 1.3 + i) * halfSize * 0.6;
+      const by = -halfSize * (0.4 + i * 0.3) - Math.abs(Math.sin(bPhase)) * halfSize * 0.5;
+      const bOp = (0.2 + clampedInt * 0.3) * (0.5 + 0.5 * Math.sin(bPhase));
+      const bSize = scale(3 + i * 1.5);
+      particles.push(
+        <Animated.View
+          key={`bubble-${i}`}
+          pointerEvents="none"
+          style={{
+            position: 'absolute' as const,
+            left: charXBase + bx - bSize / 2,
+            width: bSize,
+            height: bSize,
+            borderRadius: bSize / 2,
+            borderWidth: 1,
+            borderColor: `rgba(100,255,100,${bOp.toFixed(2)})`,
+            backgroundColor: `rgba(80,220,80,${(bOp * 0.3).toFixed(2)})`,
+            transform: [
+              { translateX: charXDrift },
+              { translateY: Animated.add(charY, by) },
+            ],
+          }}
+        />
+      );
+    }
+  }
+
+  return <>{particles}</>;
+});
+
 const GameBlobSkin = React.memo(function GameBlobSkin({ skinData, stretchY, stretchX }: { skinData: { id: string; name: string; personality: string; bodyColor: string; bodyDark: string; eyeStyle: string; mouthStyle: string; hatColor: string; hatBand: string; hatStyle: string; accentColor: string; cheekColor: string; locked: boolean; unlockRequirement: number; labelColor: string; labelBg: string; speechLine: string }; stretchY?: Animated.Value; stretchX?: Animated.Value }) {
   return <BlobSkin skin={skinData as any} size={GAME_CONFIG.CHARACTER_SIZE} animated={false} externalScaleY={stretchY} externalScaleX={stretchX} />;
 });
@@ -1678,6 +1786,14 @@ export default function GameScreen() {
     breathPhase.current = 0;
     prevVelForLinear.current = 0;
     motionSmearIntensity.current = 0;
+    sickIntensity.current = 0;
+    sickBuildUp.current = 0;
+    sickPhase.current = 0;
+    sickWobblePhase.current = 0;
+    sickPeakTimer.current = 0;
+    prevSickIntensity.current = 0;
+    sickOverlayOpacity.setValue(0);
+    sickTintAnim.setValue(0);
     levelRef.current = LEVELS[0];
     setCurrentLevel(LEVELS[0]);
     setShowLevelUp(false);
@@ -2032,7 +2148,30 @@ export default function GameScreen() {
               } : undefined}>
                 <GameBlobSkin skinData={currentSkin} stretchY={charStretchY} stretchX={charStretchX} />
               </Animated.View>
+              <Animated.View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute' as const,
+                  width: GAME_CONFIG.CHARACTER_SIZE * 1.3,
+                  height: GAME_CONFIG.CHARACTER_SIZE * 1.3,
+                  borderRadius: GAME_CONFIG.CHARACTER_SIZE * 0.65,
+                  backgroundColor: '#4AFF4A',
+                  opacity: Animated.multiply(sickOverlayOpacity, 0.18),
+                  alignSelf: 'center' as const,
+                }}
+              />
             </Animated.View>
+
+            {gameStatus === 'playing' && sickIntensity.current > 0.2 && (
+              <SickEffects
+                charY={charAnim}
+                charXBase={baseX}
+                charXDrift={charXAnim}
+                charSize={GAME_CONFIG.CHARACTER_SIZE}
+                intensity={sickIntensity.current}
+                phase={sickPhase.current}
+              />
+            )}
 
             {showSplat && (
               <View
@@ -2220,6 +2359,28 @@ export default function GameScreen() {
             </View>
           </View>
         </View>
+
+        {gameStatus === 'playing' && (
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              position: 'absolute' as const,
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              borderWidth: scale(8),
+              borderColor: 'rgba(80,255,80,0.25)',
+              borderRadius: scale(4),
+              opacity: sickTintAnim.interpolate({
+                inputRange: [0, 0.2, 0.5, 1],
+                outputRange: [0, 0, 0.3, 0.7],
+                extrapolate: 'clamp',
+              }),
+              zIndex: 90,
+            }}
+          />
+        )}
 
         {gameStatus === 'paused' && (
           <View style={styles.pauseOverlay}>
