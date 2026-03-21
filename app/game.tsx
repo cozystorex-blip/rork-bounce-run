@@ -341,6 +341,13 @@ export default function GameScreen() {
   const charWobble = useRef(new Animated.Value(0)).current;
   const airflowOpacity = useRef(new Animated.Value(0)).current;
   const sickOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const sickTintAnim = useRef(new Animated.Value(0)).current;
+  const sickIntensity = useRef(0);
+  const sickBuildUp = useRef(0);
+  const sickPhase = useRef(0);
+  const sickWobblePhase = useRef(0);
+  const sickPeakTimer = useRef(0);
+  const prevSickIntensity = useRef(0);
 
   const trajectoryOpacity = useRef(new Animated.Value(0)).current;
   const trajectoryFade = useRef<Animated.CompositeAnimation | null>(null);
