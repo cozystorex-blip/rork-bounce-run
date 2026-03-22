@@ -247,6 +247,61 @@ const SickEffects = React.memo(function SickEffects({
   return <>{particles}</>;
 });
 
+const BlobUpwardWisps = React.memo(function BlobUpwardWisps({
+  charY, charXBase, charXDrift, charSize, tick,
+}: {
+  charY: Animated.Value;
+  charXBase: number;
+  charXDrift: Animated.Value;
+  charSize: number;
+  tick: number;
+}) {
+  const halfSize = charSize / 2;
+  const particles: React.ReactNode[] = [];
+  const count = 4;
+  const phase = tick * 0.04;
+
+  for (let i = 0; i < count; i++) {
+    const seed = i * 1.7 + 0.3;
+    const cycleSpeed = 0.6 + i * 0.15;
+    const cycle = (phase * cycleSpeed + seed) % (Math.PI * 2);
+    const lifeT = (Math.sin(cycle) + 1) / 2;
+
+    const dx = Math.sin(seed * 3.1 + phase * 0.3) * halfSize * 0.45;
+    const baseRise = -halfSize * 0.3;
+    const rise = baseRise - lifeT * halfSize * 0.7;
+    const drift = Math.sin(phase * 0.7 + i * 2.2) * halfSize * 0.15;
+
+    const fadeIn = Math.min(1, lifeT * 3);
+    const fadeOut = Math.max(0, 1 - (lifeT - 0.6) / 0.4);
+    const opacity = fadeIn * fadeOut * 0.35;
+    if (opacity < 0.03) continue;
+
+    const size = scale(2.5 + lifeT * 1.5);
+
+    particles.push(
+      <Animated.View
+        key={`wisp-${i}`}
+        pointerEvents="none"
+        style={{
+          position: 'absolute' as const,
+          left: charXBase + dx + drift - size / 2,
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: `rgba(255,255,255,${opacity.toFixed(3)})`,
+          transform: [
+            { translateX: charXDrift },
+            { translateY: Animated.add(charY, rise) },
+          ],
+        }}
+      />
+    );
+  }
+
+  return <>{particles}</>;
+});
+
 const GameBlobSkin = React.memo(function GameBlobSkin({ skinData, stretchY, stretchX }: { skinData: { id: string; name: string; personality: string; bodyColor: string; bodyDark: string; eyeStyle: string; mouthStyle: string; hatColor: string; hatBand: string; hatStyle: string; accentColor: string; cheekColor: string; locked: boolean; unlockRequirement: number; labelColor: string; labelBg: string; speechLine: string }; stretchY?: Animated.Value; stretchX?: Animated.Value }) {
   return <BlobSkin skin={skinData as any} size={GAME_CONFIG.CHARACTER_SIZE} animated={false} externalScaleY={stretchY} externalScaleX={stretchX} />;
 });
@@ -2169,6 +2224,16 @@ export default function GameScreen() {
                 }}
               />
             </Animated.View>
+
+            {gameStatus === 'playing' && (
+              <BlobUpwardWisps
+                charY={charAnim}
+                charXBase={baseX}
+                charXDrift={charXAnim}
+                charSize={GAME_CONFIG.CHARACTER_SIZE}
+                tick={renderTick}
+              />
+            )}
 
             {gameStatus === 'playing' && sickIntensity.current > 0.2 && (
               <SickEffects
