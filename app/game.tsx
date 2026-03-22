@@ -302,6 +302,203 @@ const BlobUpwardWisps = React.memo(function BlobUpwardWisps({
   return <>{particles}</>;
 });
 
+const BlobLinearTrail = React.memo(function BlobLinearTrail({
+  charY, charXBase, charXDrift, charSize, velocity, speed, tick,
+}: {
+  charY: Animated.Value;
+  charXBase: number;
+  charXDrift: Animated.Value;
+  charSize: number;
+  velocity: number;
+  speed: number;
+  tick: number;
+}) {
+  const halfSize = charSize / 2;
+  const absVel = Math.abs(velocity);
+  const speedNorm = Math.min(1, speed / 6);
+  const intensity = Math.min(1, absVel / 5) * 0.7 + speedNorm * 0.3;
+  if (intensity < 0.08) return null;
+
+  const particles: React.ReactNode[] = [];
+  const trailCount = intensity > 0.5 ? 6 : intensity > 0.25 ? 4 : 3;
+  const phase = tick * 0.03;
+
+  for (let i = 0; i < trailCount; i++) {
+    const t = (i + 1) / trailCount;
+    const lagX = -t * halfSize * (0.8 + speedNorm * 1.2);
+    const lagY = t * velocity * 1.8;
+    const spread = Math.sin(phase + i * 1.4) * halfSize * 0.12 * t;
+    const trailOpacity = intensity * (1 - t * 0.7) * 0.38;
+    if (trailOpacity < 0.02) continue;
+    const sz = scale(3.5 - t * 1.2) * (1 + intensity * 0.3);
+
+    particles.push(
+      <Animated.View
+        key={`lt-${i}`}
+        pointerEvents="none"
+        style={{
+          position: 'absolute' as const,
+          left: charXBase + lagX - sz / 2,
+          width: sz,
+          height: sz * (1 + intensity * 0.6),
+          borderRadius: sz,
+          backgroundColor: `rgba(255,255,255,${trailOpacity.toFixed(3)})`,
+          transform: [
+            { translateX: charXDrift },
+            { translateY: Animated.add(charY, lagY + spread + halfSize * 0.3) },
+          ],
+        }}
+      />
+    );
+  }
+
+  if (intensity > 0.3) {
+    const streakCount = intensity > 0.6 ? 3 : 2;
+    for (let i = 0; i < streakCount; i++) {
+      const st = (i + 0.5) / streakCount;
+      const slagX = -st * halfSize * (1.0 + speedNorm * 0.8);
+      const slagY = st * velocity * 1.2 + Math.sin(phase * 1.5 + i * 2.3) * halfSize * 0.08;
+      const sWidth = scale(6 + intensity * 8) * (1 - st * 0.5);
+      const sHeight = scale(1.2 + intensity * 0.5);
+      const sOpacity = intensity * (1 - st * 0.6) * 0.22;
+
+      particles.push(
+        <Animated.View
+          key={`ls-${i}`}
+          pointerEvents="none"
+          style={{
+            position: 'absolute' as const,
+            left: charXBase + slagX - sWidth / 2,
+            width: sWidth,
+            height: sHeight,
+            borderRadius: sHeight,
+            backgroundColor: `rgba(255,255,220,${sOpacity.toFixed(3)})`,
+            transform: [
+              { translateX: charXDrift },
+              { translateY: Animated.add(charY, slagY + halfSize * 0.2) },
+            ],
+          }}
+        />
+      );
+    }
+  }
+
+  return <>{particles}</>;
+});
+
+const BlobSideAngle = React.memo(function BlobSideAngle({
+  charY, charXBase, charXDrift, charSize, xDriftVal, velocity, tick,
+}: {
+  charY: Animated.Value;
+  charXBase: number;
+  charXDrift: Animated.Value;
+  charSize: number;
+  xDriftVal: number;
+  velocity: number;
+  tick: number;
+}) {
+  const halfSize = charSize / 2;
+  const driftNorm = xDriftVal / MAX_X_DRIFT;
+  const absDrift = Math.abs(driftNorm);
+  if (absDrift < 0.08) return null;
+
+  const particles: React.ReactNode[] = [];
+  const phase = tick * 0.04;
+  const driftDir = driftNorm > 0 ? 1 : -1;
+  const intensity = Math.min(1, absDrift);
+
+  const windCount = intensity > 0.5 ? 4 : 3;
+  for (let i = 0; i < windCount; i++) {
+    const t = (i + 0.5) / windCount;
+    const windX = -driftDir * halfSize * (0.6 + t * 0.5);
+    const windY = (t - 0.5) * charSize * 0.7 + Math.sin(phase * 1.2 + i * 1.8) * halfSize * 0.1;
+    const windLen = scale(5 + intensity * 10) * (1 - t * 0.3);
+    const windH = scale(1 + intensity * 0.8);
+    const windOp = intensity * (1 - t * 0.5) * 0.28;
+    if (windOp < 0.02) continue;
+
+    particles.push(
+      <Animated.View
+        key={`sw-${i}`}
+        pointerEvents="none"
+        style={{
+          position: 'absolute' as const,
+          left: charXBase + windX - windLen / 2,
+          width: windLen,
+          height: windH,
+          borderRadius: windH,
+          backgroundColor: `rgba(200,220,255,${windOp.toFixed(3)})`,
+          transform: [
+            { translateX: charXDrift },
+            { translateY: Animated.add(charY, windY + halfSize * 0.3) },
+          ],
+        }}
+      />
+    );
+  }
+
+  const angleSparkCount = intensity > 0.4 ? 3 : 2;
+  for (let i = 0; i < angleSparkCount; i++) {
+    const seed = i * 2.1 + 0.7;
+    const cycle = (phase * 0.8 + seed) % (Math.PI * 2);
+    const lifeT = (Math.sin(cycle) + 1) / 2;
+    const sparkX = -driftDir * halfSize * (0.5 + lifeT * 0.6);
+    const sparkY = Math.sin(seed * 1.7 + phase * 0.5) * halfSize * 0.5;
+    const sparkSize = scale(2 + intensity * 2) * (0.5 + lifeT * 0.5);
+    const fadeIn = Math.min(1, lifeT * 2.5);
+    const fadeOut = Math.max(0, 1 - (lifeT - 0.5) / 0.5);
+    const sparkOp = fadeIn * fadeOut * intensity * 0.32;
+    if (sparkOp < 0.02) continue;
+
+    const hue = driftDir > 0 ? '180,220,255' : '220,200,255';
+    particles.push(
+      <Animated.View
+        key={`sa-${i}`}
+        pointerEvents="none"
+        style={{
+          position: 'absolute' as const,
+          left: charXBase + sparkX - sparkSize / 2,
+          width: sparkSize,
+          height: sparkSize,
+          borderRadius: sparkSize / 2,
+          backgroundColor: `rgba(${hue},${sparkOp.toFixed(3)})`,
+          transform: [
+            { translateX: charXDrift },
+            { translateY: Animated.add(charY, sparkY + halfSize * 0.2) },
+          ],
+        }}
+      />
+    );
+  }
+
+  if (intensity > 0.3) {
+    const leanAngle = driftNorm * 12;
+    const leanLineLen = scale(8 + intensity * 6);
+    const leanOp = intensity * 0.18;
+    particles.push(
+      <Animated.View
+        key="lean-ind"
+        pointerEvents="none"
+        style={{
+          position: 'absolute' as const,
+          left: charXBase - leanLineLen / 2,
+          width: leanLineLen,
+          height: scale(1.5),
+          borderRadius: scale(1),
+          backgroundColor: `rgba(255,255,255,${leanOp.toFixed(3)})`,
+          transform: [
+            { translateX: charXDrift },
+            { translateY: Animated.add(charY, -halfSize * 0.6) },
+            { rotate: `${leanAngle.toFixed(1)}deg` },
+          ],
+        }}
+      />
+    );
+  }
+
+  return <>{particles}</>;
+});
+
 const GameBlobSkin = React.memo(function GameBlobSkin({ skinData, stretchY, stretchX }: { skinData: { id: string; name: string; personality: string; bodyColor: string; bodyDark: string; eyeStyle: string; mouthStyle: string; hatColor: string; hatBand: string; hatStyle: string; accentColor: string; cheekColor: string; locked: boolean; unlockRequirement: number; labelColor: string; labelBg: string; speechLine: string }; stretchY?: Animated.Value; stretchX?: Animated.Value }) {
   return <BlobSkin skin={skinData as any} size={GAME_CONFIG.CHARACTER_SIZE} animated={false} externalScaleY={stretchY} externalScaleX={stretchX} />;
 });
@@ -2231,6 +2428,30 @@ export default function GameScreen() {
                 charXBase={baseX}
                 charXDrift={charXAnim}
                 charSize={GAME_CONFIG.CHARACTER_SIZE}
+                tick={renderTick}
+              />
+            )}
+
+            {gameStatus === 'playing' && (
+              <BlobLinearTrail
+                charY={charAnim}
+                charXBase={baseX}
+                charXDrift={charXAnim}
+                charSize={GAME_CONFIG.CHARACTER_SIZE}
+                velocity={velocity.current}
+                speed={currentObstacleSpeed.current}
+                tick={renderTick}
+              />
+            )}
+
+            {gameStatus === 'playing' && Math.abs(xDrift.current) > MAX_X_DRIFT * 0.08 && (
+              <BlobSideAngle
+                charY={charAnim}
+                charXBase={baseX}
+                charXDrift={charXAnim}
+                charSize={GAME_CONFIG.CHARACTER_SIZE}
+                xDriftVal={xDrift.current}
+                velocity={velocity.current}
                 tick={renderTick}
               />
             )}
