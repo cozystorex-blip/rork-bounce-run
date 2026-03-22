@@ -153,7 +153,7 @@ const SickEffects = React.memo(function SickEffects({
   const clampedInt = Math.min(1, intensity);
   const particles: React.ReactNode[] = [];
 
-  const sweatCount = clampedInt > 0.4 ? 3 : clampedInt > 0.25 ? 2 : 1;
+  const sweatCount = clampedInt > 0.4 ? 2 : 1;
   for (let i = 0; i < sweatCount; i++) {
     const angle = (phase * 1.2 + i * 2.1) % (Math.PI * 2);
     const radius = halfSize * (0.9 + clampedInt * 0.4);
@@ -182,7 +182,7 @@ const SickEffects = React.memo(function SickEffects({
   }
 
   if (clampedInt > 0.35) {
-    const starCount = clampedInt > 0.7 ? 4 : 3;
+    const starCount = clampedInt > 0.7 ? 3 : 2;
     for (let i = 0; i < starCount; i++) {
       const starAngle = (phase * 0.8 + i * (Math.PI * 2 / starCount)) % (Math.PI * 2);
       const starRadius = halfSize * (0.7 + clampedInt * 0.5);
@@ -214,7 +214,7 @@ const SickEffects = React.memo(function SickEffects({
   }
 
   if (clampedInt > 0.5) {
-    const bubbleCount = clampedInt > 0.8 ? 3 : 2;
+    const bubbleCount = 2;
     for (let i = 0; i < bubbleCount; i++) {
       const bPhase = (phase * 0.5 + i * 1.8) % (Math.PI * 2);
       const bx = Math.sin(bPhase * 1.3 + i) * halfSize * 0.6;
@@ -258,7 +258,7 @@ const BlobUpwardWisps = React.memo(function BlobUpwardWisps({
 }) {
   const halfSize = charSize / 2;
   const particles: React.ReactNode[] = [];
-  const count = 4;
+  const count = 2;
   const phase = tick * 0.04;
 
   for (let i = 0; i < count; i++) {
@@ -317,10 +317,10 @@ const BlobLinearTrail = React.memo(function BlobLinearTrail({
   const absVel = Math.abs(velocity);
   const speedNorm = Math.min(1, speed / 6);
   const intensity = Math.min(1, absVel / 5) * 0.7 + speedNorm * 0.3;
-  if (intensity < 0.08) return null;
+  if (intensity < 0.12) return null;
 
   const particles: React.ReactNode[] = [];
-  const trailCount = intensity > 0.5 ? 6 : intensity > 0.25 ? 4 : 3;
+  const trailCount = intensity > 0.5 ? 4 : 3;
   const phase = tick * 0.03;
 
   for (let i = 0; i < trailCount; i++) {
@@ -352,8 +352,8 @@ const BlobLinearTrail = React.memo(function BlobLinearTrail({
     );
   }
 
-  if (intensity > 0.3) {
-    const streakCount = intensity > 0.6 ? 3 : 2;
+  if (intensity > 0.4) {
+    const streakCount = 2;
     for (let i = 0; i < streakCount; i++) {
       const st = (i + 0.5) / streakCount;
       const slagX = -st * halfSize * (1.0 + speedNorm * 0.8);
@@ -400,14 +400,14 @@ const BlobSideAngle = React.memo(function BlobSideAngle({
   const halfSize = charSize / 2;
   const driftNorm = xDriftVal / MAX_X_DRIFT;
   const absDrift = Math.abs(driftNorm);
-  if (absDrift < 0.08) return null;
+  if (absDrift < 0.15) return null;
 
   const particles: React.ReactNode[] = [];
   const phase = tick * 0.04;
   const driftDir = driftNorm > 0 ? 1 : -1;
   const intensity = Math.min(1, absDrift);
 
-  const windCount = intensity > 0.5 ? 4 : 3;
+  const windCount = intensity > 0.5 ? 3 : 2;
   for (let i = 0; i < windCount; i++) {
     const t = (i + 0.5) / windCount;
     const windX = -driftDir * halfSize * (0.6 + t * 0.5);
@@ -437,7 +437,7 @@ const BlobSideAngle = React.memo(function BlobSideAngle({
     );
   }
 
-  const angleSparkCount = intensity > 0.4 ? 3 : 2;
+  const angleSparkCount = 2;
   for (let i = 0; i < angleSparkCount; i++) {
     const seed = i * 2.1 + 0.7;
     const cycle = (phase * 0.8 + seed) % (Math.PI * 2);
@@ -471,7 +471,7 @@ const BlobSideAngle = React.memo(function BlobSideAngle({
     );
   }
 
-  if (intensity > 0.3) {
+  if (intensity > 0.4) {
     const leanAngle = driftNorm * 12;
     const leanLineLen = scale(8 + intensity * 6);
     const leanOp = intensity * 0.18;
@@ -1569,7 +1569,7 @@ export default function GameScreen() {
     }
 
     renderThrottleRef.current++;
-    if (renderThrottleRef.current >= 2) {
+    if (renderThrottleRef.current >= 3) {
       renderThrottleRef.current = 0;
       renderTickRef.current++;
       if (scoreChangedRef.current) {
@@ -2087,7 +2087,7 @@ export default function GameScreen() {
   }, [router]);
 
   const trajectoryDots = useMemo(() => {
-    const dotCount = 5;
+    const dotCount = 3;
     const dots: { offsetY: number; offsetX: number; size: number; opacity: number }[] = [];
     const curVel = velocity.current;
     const grav = (levelRef.current?.fastGravity ?? 0.36) * (movementProfileRef.current?.gravityMultiplier ?? 1);
@@ -2120,22 +2120,22 @@ export default function GameScreen() {
 
   const blobColor = currentSkin?.bodyColor ?? '#FFD84A';
 
-  const charRotateDeg = charRotation.interpolate({
+  const charRotateDeg = useMemo(() => charRotation.interpolate({
     inputRange: [-1, 0, 1],
     outputRange: ['-22deg', '0deg', '20deg'],
-  });
+  }), [charRotation]);
 
-  const charWobbleDeg = charWobble.interpolate({
+  const charWobbleDeg = useMemo(() => charWobble.interpolate({
     inputRange: [-1, 0, 1],
     outputRange: [`-${movementProfile.wobbleAmount}deg`, '0deg', `${movementProfile.wobbleAmount}deg`],
-  });
+  }), [charWobble, movementProfile.wobbleAmount]);
 
   const formattedDist = useFormattedDistance(distance);
 
-  const skyLayerTranslate = skyShift.interpolate({
+  const skyLayerTranslate = useMemo(() => skyShift.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -30],
-  });
+  }), [skyShift]);
 
   const buildingPalettes = useMemo(() => mapTheme.obstacles.palettes, [mapTheme]);
 
