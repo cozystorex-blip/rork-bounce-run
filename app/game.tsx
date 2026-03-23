@@ -117,10 +117,10 @@ function getLevelForScore(score: number): LevelConfig {
 
 const CHARACTER_BASE_X = SCREEN_WIDTH * GAME_CONFIG.CHARACTER_X_POSITION;
 const FLAPPY_BASE_X = SCREEN_WIDTH * 0.3;
-const POLE_CAP_W = scale(56);
+const POLE_CAP_W = scale(44);
 const POLE_CAP_H = scale(16);
-const POLE_SHAFT_W = scale(22);
-const POLE_BASE_W = scale(28);
+const POLE_SHAFT_W = scale(18);
+const POLE_BASE_W = scale(22);
 const POLE_BASE_H = scale(9);
 const POLE_BORDER = scale(3.5);
 const POLE_CAP_RADIUS = scale(7);
